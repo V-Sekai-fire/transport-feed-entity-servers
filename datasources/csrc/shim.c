@@ -63,8 +63,7 @@ static int fail(char *err, int n, const char *what) {
  * <name> through it. That VFS has no WAL and no shared memory: it needs journal_mode=MEMORY, and
  * it commits atomically itself, so this mode has no WAL hook and no checkpoint thread. */
 /* From datasources/store/fdb_vfs.c, or from datasources/csrc/fdb_stub.c (which refuses) where the FDB client is absent. */
-extern int weft_fdb_start(const char *cluster_file);
-extern int weft_vfs_register(int make_default);
+#include "weft_fdb_vfs.h"
 static int fdb_mode;
 static void fdb_close_at_exit(void);
 static const char FDB_SCHEMA[] =
