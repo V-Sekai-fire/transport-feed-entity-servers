@@ -14,4 +14,16 @@ typedef struct {
 /* Binds host:port (port 0 picks one, written to *bound), runs `ticks` ticks, fills `out`.
  * Returns 0, or a negative errno-style code. Linux and macOS (plain syscalls). */
 int et_run(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_ns, uint16_t *bound, et_report_t *out);
+/* One outgoing datagram. `to` points at the session's sockaddr_in; it stays valid until send_all returns. */
+typedef struct { const void *buf; uint32_t len; const void *to; uint32_t tolen; } et_out_t;
+/* Optional send backend. NULL, or a NULL send_all, means one sendto per datagram. send_all returns how many
+ * datagrams the kernel accepted and must not return before all `n` have completed, so the tick clock stops
+ * after the sends, not at submit. open runs once after the socket is bound, close once at the end. */
+typedef struct {
+  int (*open)(int fd);
+  int (*send_all)(int fd, const et_out_t *o, int n);
+  void (*close)(void);
+} et_io_t;
+int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_ns, uint16_t *bound, et_report_t *out,
+                const et_io_t *io);
 #endif

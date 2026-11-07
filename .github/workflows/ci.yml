@@ -50,7 +50,7 @@ jobs:
           gdb -batch -ex run -ex bt -ex "info sharedlibrary" --args .lake/build/bin/sqlite-check "fdb:ci-bt-${GITHUB_RUN_ID}" 2>&1 | tail -40
   tick-budget:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - name: Runner conditions
@@ -60,6 +60,8 @@ jobs:
           lscpu -e
           grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
           if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
+      - name: Install liburing
+        run: sudo apt-get update && sudo -S -p '' apt-get install -y --no-install-recommends liburing-dev
       - name: Probe io_uring (a block is reported, not failed)
         run: |
           cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/ring_probe.c -o "$RUNNER_TEMP/ring_probe"
@@ -89,3 +91,7 @@ jobs:
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/tick-layouts.sh
       - name: Client sweep, one pinned server, planted defect at every level
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/client-sweep.sh
+      - name: Send path, plain against io_uring against SQPOLL
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"
+          BIN="$RUNNER_TEMP" bash deploy/scripts/ring-compare.sh
