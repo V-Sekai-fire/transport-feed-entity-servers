@@ -1,4 +1,4 @@
-import FeedServer
+import FeedServer.All
 /-! In-memory stand-in for the SQLite B-tree cursors: tables are arrays of encoded records. -/
 open FeedServer
 

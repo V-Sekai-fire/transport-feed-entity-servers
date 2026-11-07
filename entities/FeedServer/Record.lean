@@ -1,4 +1,4 @@
-/-! SQLite record decoding, ported from reference/src/db.rs
+/-! SQLite record decoding, ported from datasources/reference/src/db.rs
 (`varint`, `varint_long`, `serial_len`, `int_of`, `columns`, `text`). Pure, over `ByteArray`. -/
 namespace FeedServer.Record
 

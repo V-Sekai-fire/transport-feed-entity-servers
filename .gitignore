@@ -1,3 +1,3 @@
 .lake/
-reference/vendor/
-reference/target/
+datasources/reference/vendor/
+datasources/reference/target/

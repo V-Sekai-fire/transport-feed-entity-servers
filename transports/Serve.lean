@@ -1,4 +1,4 @@
-import FeedServer
+import FeedServer.All
 open FeedServer
 
 def main : IO UInt32 := do

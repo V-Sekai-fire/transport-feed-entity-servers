@@ -1,4 +1,4 @@
-import FeedServer
+import FeedServer.All
 open FeedServer
 
 /-- Control against a real SQLite file: `sqlite-check path.db`. -/

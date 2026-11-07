@@ -1,17 +1,31 @@
 import Lake
 open Lake DSL System
 
-package «iouring-feed-server-lean» where
+package «transport-iouring-feed-server» where
   version := v!"0.1.0"
 
+lean_lib Entities where
+  srcDir := "entities"
+  roots := #[`FeedServer.Http, `FeedServer.Json, `FeedServer.Sha256, `FeedServer.Jwt, `FeedServer.App, `FeedServer.Record]
+
+lean_lib Repositories where
+  srcDir := "repositories"
+  roots := #[`FeedServer.Db]
+
+lean_lib Datasources where
+  srcDir := "datasources"
+  roots := #[`FeedServer.Sqlite]
+
 @[default_target]
-lean_lib FeedServer
+lean_lib Transports where
+  srcDir := "transports"
+  roots := #[`FeedServer.All, `FeedServer.Conn, `FeedServer.Server]
 
 lean_lib TestSupport where
-  srcDir := "Tests"
+  srcDir := "entities/spec"
   roots := #[`Fake]
 
-/-- SQLite options from reference/build.rs. -/
+/-- SQLite options from datasources/reference/build.rs. -/
 def sqliteDefs : Array String := #[
   "-DSQLITE_THREADSAFE=2", "-DSQLITE_DEFAULT_MEMSTATUS=0", "-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1",
   "-DSQLITE_DQS=0", "-DSQLITE_LIKE_DOESNT_MATCH_BLOBS", "-DSQLITE_MAX_EXPR_DEPTH=0",
@@ -23,15 +37,15 @@ def sqliteDefs : Array String := #[
 
 target shim.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "shim.o"
-  let src ← inputTextFile (pkg.dir / "csrc" / "shim.c")
+  let src ← inputTextFile (pkg.dir / "datasources" / "csrc" / "shim.c")
   let lean ← getLeanInstall
   let cc : FilePath := "cc"
   let fl : Array String := #["-fPIC"]
-  buildO oFile src (fl ++ #["-I", (pkg.dir / "reference" / "vendor").toString] ++ sqliteDefs) #[] cc
+  buildO oFile src (fl ++ #["-I", (pkg.dir / "datasources" / "reference" / "vendor").toString] ++ sqliteDefs) #[] cc
 
 target glue.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "lean_glue.o"
-  let src ← inputTextFile (pkg.dir / "csrc" / "lean_glue.c")
+  let src ← inputTextFile (pkg.dir / "datasources" / "csrc" / "lean_glue.c")
   let inc ← getLeanIncludeDir
   let lean ← getLeanInstall
   let cc : FilePath := "cc"
@@ -40,7 +54,7 @@ target glue.o pkg : FilePath := do
 
 target ring.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "ring_glue.o"
-  let src ← inputTextFile (pkg.dir / "csrc" / "ring_glue.c")
+  let src ← inputTextFile (pkg.dir / "transports" / "csrc" / "ring_glue.c")
   let inc ← getLeanIncludeDir
   buildO oFile src #["-I", inc.toString, "-O2", "-fPIC"] #[] "cc"
 
@@ -53,11 +67,13 @@ extern_lib libtd pkg := do
 def linkLibs : Array String := if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
 
 lean_exe «feed-tests» where
-  root := `Tests.Main
+  srcDir := "entities/spec"
+  root := `Main
   moreLinkArgs := linkLibs
 
 lean_exe «sqlite-check» where
-  root := `Tests.SqliteCheck
+  srcDir := "datasources/spec"
+  root := `SqliteCheck
   moreLinkArgs := linkLibs
 
 
@@ -68,5 +84,6 @@ def uringA : String :=
 def serveLibs : Array String := if System.Platform.isOSX then #[] else #[uringA, "-lpthread", "-lm"]
 
 lean_exe «feed-server» where
-  root := `Tests.Serve
+  srcDir := "transports"
+  root := `Serve
   moreLinkArgs := serveLibs

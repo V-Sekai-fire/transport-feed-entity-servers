@@ -2,10 +2,10 @@
 # Linux smoke test: build, seed a tiny DB, start the Lean io_uring server, hit it with curl.
 set -u
 mkdir -p /w && cd /src && tar cf - --exclude=.lake --exclude=.git . | tar xf - -C /w && cd /w
-bash scripts/fetch-sqlite.sh
+bash deploy/scripts/fetch-sqlite.sh
 lake build feed-server 2>&1 | grep -E "^error|Build" | head -5
 rm -f /tmp/f.db*
-sqlite3 /tmp/f.db < reference/schema.sql
+sqlite3 /tmp/f.db < datasources/reference/schema.sql
 sqlite3 /tmp/f.db "PRAGMA journal_mode=WAL; INSERT INTO users(id,username) VALUES (1,'ann'),(2,'bob'); INSERT INTO posts(id,user_id,body,created_at) VALUES (1,1,'a','2026-01-01T00:00:01.000Z'),(2,2,'b','2026-01-01T00:00:02.000Z'); INSERT INTO likes(user_id,post_id) VALUES (1,2);" >/dev/null
 SECRET=twelve-dollar-challenge
 b64() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
