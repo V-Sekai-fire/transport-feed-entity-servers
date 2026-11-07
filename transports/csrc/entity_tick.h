@@ -5,11 +5,12 @@
 #define ENTITY_TICK_H
 #include <stdint.h>
 #define ET_TICK_NS 15625000LL
-#define ET_MAX_USERS 256
+#define ET_MAX_USERS 4096
 #define ET_VIEW 12
 typedef struct {
   uint32_t ticks, overruns, packets_in, datagrams_out;
   int64_t p50_ns, p95_ns, p99_ns, max_ns;
+  int64_t rcvbuf_drops; /* datagrams the kernel dropped on the server socket; -1 where the kernel does not say */
 } et_report_t;
 /* Binds host:port (port 0 picks one, written to *bound), runs `ticks` ticks, fills `out`.
  * Returns 0, or a negative errno-style code. Linux and macOS (plain syscalls). */

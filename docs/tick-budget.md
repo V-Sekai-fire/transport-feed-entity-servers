@@ -86,9 +86,9 @@ So the runner does not block io_uring, and the comparison against plain syscalls
 
 ## Send path: plain, io_uring, io_uring with SQPOLL
 
-`deploy/scripts/ring-compare.sh` runs `entity_serve_ring` three ways at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
+`deploy/scripts/ring-compare.sh` ran `entity_serve_ring` three ways in the recorded run, and now runs two (`ring` was trimmed, see the last section), at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
 
-**Only the send path differs.** Receive stays on plain syscalls in every variant, so the tick clock means the same for all three. This is not a full ring server, and the numbers below say nothing about a ring receive path.
+**Only the send path differs.** Receive stays on plain syscalls in every variant, so the tick clock means the same for every variant. This is not a full ring server, and the numbers below say nothing about a ring receive path.
 
 Run output: `study/ring-compare-run-1.txt`. Kernel `7.0.0-1017-azure`, `io_uring_disabled` 0, `Seccomp` 0.
 
@@ -107,3 +107,53 @@ What it shows: at both levels the clean p99 ranges of the three variants overlap
 
 What it does not show: a gain from a ring receive path, behaviour with more than 256 clients, or anything off loopback. One runner, 8 runs per variant and level, no isolation. In some plain and SQPOLL runs `datagrams_out` read above 44288 at 256 clients (44800 and 47104 in one run each) because the count follows when the loader's first packets reach the server, not the variant.
 
+## Client sweep past 256: the latency wall
+
+`ET_MAX_USERS` is now 4096 (about 11 MB of static data, still no heap in the tick). The `tick-wall` job runs `client-sweep.sh` at 256, 384, 512, 640, 768, 1024, 1536, 2048, 3072 and 4096 clients: 8 clean runs and 3 planted 6 ms runs per level, and it stops after 2 consecutive wall levels. A wall is reported, not failed. A level counts as a wall when a clean run goes over the 4 ms budget, a tick overruns its 15.6 ms slot, or `packets_in` falls below 160 per client. A level where the loader falls behind is loader-bound, and the sweep stops there because the server was not the limit.
+
+The planted control changed. Once clean runs pass 4 ms, every planted run is over budget too, so "caught" stops meaning anything. The control is now the planted p50 sitting at least 5 ms above the clean p50 of the same level. It held at every level: 5.91, 5.95 and 5.99 ms.
+
+Run output: `study/wall-sweep-run-1.txt`. Kernel `7.0.0-1017-azure`, 4 vCPUs, UDP receive buffer 1,048,576 bytes by default, 65,536 open descriptors.
+
+| Clients | Bytes in per tick | Bytes out per tick | Clean p50 median (µs) | p50 per client (ns) | Clean p99 min to max (µs) | Clean over 4 ms | Overruns | Packets lost | Loader worst pass (µs) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 256 | 25,600 | 307,200 | 1673 | 6536 | 2280 to 3859 | 0 of 8 runs | 0 of 8 runs | 0 of 8 runs | 3129 |
+| 384 | 38,400 | 460,800 | 2422 | 6307 | 3448 to 5161 | 1 of 8 runs | 0 of 8 runs | 0 of 8 runs | 4537 |
+| 512 | 51,200 | 614,400 | 3191 | 6231 | 4593 to 4920 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs | 4916 |
+
+**The wall is between 384 and 512 clients.** At 384 clients 7 of 8 clean p99 values sit between 3.4 and 3.7 ms and one reached 5.16 ms. At 512 clients every run is over, from 4.59 to 4.92 ms. The sweep stopped there on its own rule. The wall is in the tick's own work, not in the apparatus:
+
+- No packet was lost at any level (`packets_in` equalled 160 per client), so the receive buffer did not bind before the tick did.
+- No tick overran its 15.6 ms slot. Clean p50 at 512 clients is 3.2 ms, about 20 % of the slot, so the budget of 4 ms on p99 binds long before the slot does.
+- The loader never fell behind (`slow_passes` was 0). Its worst send pass was 4.9 ms against a 15.6 ms tick.
+
+**The cost per client did not rise.** The clean p50 per client went 6536, 6307, 6231 ns from 256 to 512 clients, which is flat to slightly falling. So up to 512 clients the tick is paying a per-client cost (receive, copy, 1200-byte `sendto`) and not the quadratic cost of the linear `find()` scan. The wall is p99 growing with p50 at about 1.4 to 1.5 times, not a new term appearing. The earlier fit of 10 µs plus 5 µs per client predicted a crossing near 600 to 700 clients. This run costs about 6.3 µs per client, so it crossed earlier. The first sweep's 256-client p50 was 1297 µs and this one's is 1673 µs, so that is runner variance: compare levels within one job, not across jobs.
+
+What it does not show: where the slot overruns (the sweep stopped at 512 clients), a gain from any send variant at the wall, or anything off loopback. One runner, 8 runs per level, no isolation, tick cost only and not end-to-end latency. `rcvbuf_drops` read -1 in all 33 runs, meaning `SO_MEMINFO` was not available, so kernel drops on the server socket were not read. Loss is judged from `packets_in` alone.
+
+### Trim: the `ring` variant
+
+The plain io_uring variant (`ring`) is removed from `entity_serve` and `ring-compare.sh`. Reason: it is dominated. It never wins an axis in either record, and it adds a code path.
+
+- CI run 1 (table above): ring median is above plain at 64 and 256 clients, and its maximum is second-worst at 256.
+- Second 8-run set from iFire, same CI runner as run 1 (raw values in `study/ring-compare-run-2.py`), p99 mean (ns, std): 64 clients plain 666761 (15121), ring 699934 (39170), sqpoll 559967 (20859). 256 clients plain 2238279 (27614), ring 2260388 (45861), sqpoll 2166475 (193243).
+- Spread-penalised budget, period / (1 + 4 cs) with cs = std / mean (a proxy: this std is across runs of the p99, not frame time, and the rule was set for 144 Hz). Factor 1+4cs at 64 clients: plain 1.09, ring 1.22, sqpoll 1.15. At 256 clients: plain 1.05, ring 1.08, sqpoll 1.36. So ring has the least headroom at 64, and sqpoll the least at 256.
+
+Kept: `plain` (lowest spread, no extra core) and `sqpoll` (lowest mean at 64 clients, but costs vCPU 3 and has the widest spread at 256, so it is opt-in). The 256-client gap between sqpoll and plain (72 us) is inside sqpoll's spread at 8 runs; it is not shown. The ring-vs-plain gap is not statistically shown either (n = 8); the trim rests on dominance and cost, not on a proven slowdown. The recorded ring rows above stay as history. To re-measure ring, check out the commit before this one.
+
+Frontier learning check (RFD66606-2427, the sense of a level from RFD66606-2309). A clean result counts only after its level caught the planted defect in each of the last eight runs. In run 2 all three variants caught it 8 of 8 at both levels (about 6.5 ms at 64 clients, 8.0 to 8.7 ms at 256), so regret 1[s >= 1] - s/n is 0 for every cell and the clean p99 values are valid. No cell is the frontier by that measure. The open question is a different one: the 256-client sqpoll against plain gap is inside sqpoll's spread. The next runs should go to that level, with more than 8 clean runs, before `sqpoll` is called faster there.
+
+Run 2 and run 1 share a runner but disagree on level: plain at 64 clients is a median of 486 us in run 1 and a mean of 667 us in run 2. That 37% drift between runs on one runner is larger than any ring-against-plain gap in either run, which is why the trim rests on dominance and cost, not on a measured slowdown.
+
+### Second run (CI rerun on the rebased branch)
+
+The same job ran again on the branch after it was rebased onto `dev/entity-server` with #24. Run output: `study/wall-sweep-run-2.txt`. The sweep did not stop at 512 clients this time, because 384 clients had no over-budget run, so 512 and 640 were the two consecutive wall levels.
+
+| Clients | Clean p50 median (µs) | p50 per client (ns) | Clean p99 min to max (µs) | Clean over 4 ms | Overruns | Packets lost |
+| --- | --- | --- | --- | --- | --- | --- |
+| 256 | 1659 | 6479 | 2273 to 2359 | 0 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+| 384 | 2409 | 6272 | 3449 to 3687 | 0 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+| 512 | 3163 | 6176 | 4631 to 4870 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+| 640 | 3949 | 6169 | 5768 to 5831 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+
+Both runs bracket the wall the same way: inside the budget at 256 clients, over it in every run at 512 clients, and 384 clients sits on the edge (1 of 8 runs over in run 1, 0 of 8 in run 2, with the worst clean p99 at 5161 µs in run 1 and 3687 µs in run 2). Treat the wall as "between 384 and 512 clients", not as a client count. The p50 per client keeps falling slightly through 640 clients (6479, 6272, 6176, 6169 ns), so the session scan in `find()` has not shown up as a quadratic term yet. The planted p50 stayed 5.91 to 6.01 ms above the clean p50 at every level, so the control discriminated past the wall. Still no packet lost and no overrun at 640 clients, where the clean p50 is 3.9 ms, about 25 % of the 15.6 ms slot.

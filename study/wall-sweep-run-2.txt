@@ -1,0 +1,262 @@
+Current runner version: '2.338.2'
+##[group]Runner Image Provisioner
+Hosted Compute Agent
+Version: 20261028.624
+Commit: 54898b74c23fde5556c9b3c3a2290865feef0dfe
+Build Date: 2026-10-28T21:51:42Z
+Worker ID: {77eb9837-242f-43f4-940f-8f7acb9e4992}
+Region: eastus
+Cloud: Azure
+##[endgroup]
+##[group]Operating System
+Ubuntu
+24.04.5
+LTS
+##[endgroup]
+##[group]Runner Image
+Image: ubuntu-24.04
+Version: 20261101.360.1
+Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261101.360/images/ubuntu/Ubuntu2404-Readme.md
+Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261101.360
+##[endgroup]
+##[group]GITHUB_TOKEN Permissions
+Contents: read
+Metadata: read
+Packages: read
+##[endgroup]
+Secret source: Actions
+Cache mode: write
+Prepare workflow directory
+Prepare all required actions
+Getting action download info
+Download action repository 'actions/checkout@v5' (SHA:fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09)
+Complete job name: tick-wall
+##[group]Run actions/checkout@v5
+with:
+  repository: V-Sekai-fire/transport-iouring-feed-server
+  token: ***
+  ssh-strict: true
+  ssh-user: git
+  persist-credentials: true
+  clean: true
+  sparse-checkout-cone-mode: true
+  fetch-depth: 1
+  fetch-tags: false
+  show-progress: true
+  lfs: false
+  submodules: false
+  set-safe-directory: true
+  allow-unsafe-pr-checkout: false
+##[endgroup]
+Syncing repository: V-Sekai-fire/transport-iouring-feed-server
+##[group]Getting Git version info
+Working directory is '/home/runner/work/transport-iouring-feed-server/transport-iouring-feed-server'
+[command]/usr/bin/git version
+git version 2.56.0
+##[endgroup]
+Temporarily overriding HOME='/home/runner/work/_temp/e7ec4aba-c3f3-4cf5-a3d1-db8ed946b4e9' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/transport-iouring-feed-server/transport-iouring-feed-server
+Deleting the contents of '/home/runner/work/transport-iouring-feed-server/transport-iouring-feed-server'
+##[group]Initializing the repository
+[command]/usr/bin/git init /home/runner/work/transport-iouring-feed-server/transport-iouring-feed-server
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: will change to "main" in Git 3.0. To configure the initial branch name
+hint: to use in all of your new repositories, which will suppress this warning,
+hint: call:
+hint:
+hint: 
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint: 
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+Initialized empty Git repository in /home/runner/work/transport-iouring-feed-server/transport-iouring-feed-server/.git/
+[command]/usr/bin/git remote add origin https://github.com/V-Sekai-fire/transport-iouring-feed-server
+##[endgroup]
+##[group]Disabling automatic garbage collection
+[command]/usr/bin/git config --local gc.auto 0
+##[endgroup]
+##[group]Setting up auth
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+[command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+##[endgroup]
+##[group]Fetching the repository
+[command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +27bff47c93c86fd55f13d9512f0b28b18c5f2f79:refs/remotes/pull/25/merge
+From https://github.com/V-Sekai-fire/transport-iouring-feed-server
+ * [new ref]         27bff47c93c86fd55f13d9512f0b28b18c5f2f79 -> pull/25/merge
+##[endgroup]
+##[group]Determining the checkout info
+##[endgroup]
+[command]/usr/bin/git sparse-checkout disable
+[command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+##[group]Checking out the ref
+[command]/usr/bin/git checkout --progress --force refs/remotes/pull/25/merge
+Note: switching to 'refs/remotes/pull/25/merge'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at 27bff47 Merge 889481d298343257681103f3ef3946670dd6a65e into 6d5a9f95361f80a8a5ecdb7768d1e75fed54719f
+##[endgroup]
+[command]/usr/bin/git log -1 --format=%H
+27bff47c93c86fd55f13d9512f0b28b18c5f2f79
+##[group]Run uname -r
+^[[36;1muname -r^[[0m
+^[[36;1mnproc^[[0m
+^[[36;1mgrep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list^[[0m
+^[[36;1mif [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi^[[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+7.0.0-1017-azure
+4
+/sys/devices/system/cpu/cpu0/topology/thread_siblings_list:0-1
+/sys/devices/system/cpu/cpu1/topology/thread_siblings_list:0-1
+/sys/devices/system/cpu/cpu2/topology/thread_siblings_list:2-3
+/sys/devices/system/cpu/cpu3/topology/thread_siblings_list:2-3
+##[group]Run cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_serve.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_serve"
+^[[36;1mcc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_serve.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_serve"^[[0m
+^[[36;1mcc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"^[[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+##[group]Run BIN="$RUNNER_TEMP" LEVELS="256 384 512 640 768 1024 1536 2048 3072 4096" RUNS=8 PLANTED=3 STOP_AFTER=2 bash deploy/scripts/client-sweep.sh
+^[[36;1mBIN="$RUNNER_TEMP" LEVELS="256 384 512 640 768 1024 1536 2048 3072 4096" RUNS=8 PLANTED=3 STOP_AFTER=2 bash deploy/scripts/client-sweep.sh^[[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+open files limit 65536 descriptors; udp receive buffer default 1048576 bytes, max 1048576 bytes; ephemeral ports 32768
+control: a server pinned to 0 reads back as 0
+packet 100 bytes, view 12 entities, user cap 4096 clients, server on 0, loader on 2
+== 256 clients: 25600 bytes in and 307200 bytes out per tick (256 datagrams of 1200 bytes)
+planted 1: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=7569493ns p95=8318326ns p99=8402878ns max=8426657ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1548617ns slow_passes=0 sends_failed=0
+planted 2: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=7564884ns p95=7977541ns p99=8353929ns max=8573687ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1550829ns slow_passes=0 sends_failed=0
+planted 3: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=7565845ns p95=7879008ns p99=8207978ns max=8439798ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1522396ns slow_passes=0 sends_failed=0
+clean 1: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1663769ns p95=2098709ns p99=2307238ns max=2401012ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1516575ns slow_passes=0 sends_failed=0
+clean 2: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1648602ns p95=2127790ns p99=2304880ns max=2513061ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1820971ns slow_passes=0 sends_failed=0
+clean 3: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1672817ns p95=2156096ns p99=2321024ns max=2406719ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1530311ns slow_passes=0 sends_failed=0
+clean 4: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1653442ns p95=2154554ns p99=2272884ns max=2474839ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1705790ns slow_passes=0 sends_failed=0
+clean 5: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1659163ns p95=2208294ns p99=2337344ns max=2430637ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1530123ns slow_passes=0 sends_failed=0
+clean 6: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1650787ns p95=2131451ns p99=2333125ns max=2437440ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1856120ns slow_passes=0 sends_failed=0
+clean 7: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1663451ns p95=2190370ns p99=2321904ns max=2432379ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1712222ns slow_passes=0 sends_failed=0
+clean 8: cpus=0 packets_in=40960 datagrams_out=44288 overruns=0 p50=1658862ns p95=2103761ns p99=2359195ns max=2450463ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=1494216ns slow_passes=0 sends_failed=0
+level 256 clients: planted caught 3 of 3 runs, planted p50 above clean p50 by 5906983ns; clean p50 median=1658862ns (6479ns per client) p99 min=2272884ns max=2359195ns; clean over the 4 ms budget in 0 of 8 runs, with overruns in 0 of 8 runs, with fewer than 40960 packets in in 0 of 8 runs, loader behind in 0 of 8 runs
+== 384 clients: 38400 bytes in and 460800 bytes out per tick (384 datagrams of 1200 bytes)
+planted 1: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=8353992ns p95=8949807ns p99=9442260ns max=9639577ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2270751ns slow_passes=0 sends_failed=0
+planted 2: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=8349033ns p95=8953799ns p99=9632839ns max=9762624ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2447024ns slow_passes=0 sends_failed=0
+planted 3: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=8358557ns p95=8958581ns p99=9600584ns max=9678515ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2259025ns slow_passes=0 sends_failed=0
+clean 1: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2408744ns p95=3130375ns p99=3623711ns max=3687900ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2265307ns slow_passes=0 sends_failed=0
+clean 2: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2398094ns p95=3173445ns p99=3639521ns max=3716865ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2253707ns slow_passes=0 sends_failed=0
+clean 3: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2389139ns p95=3124573ns p99=3681259ns max=3911215ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2242416ns slow_passes=0 sends_failed=0
+clean 4: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2420336ns p95=3135223ns p99=3544855ns max=3794499ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2558563ns slow_passes=0 sends_failed=0
+clean 5: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2413153ns p95=3162895ns p99=3686867ns max=4306871ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2237527ns slow_passes=0 sends_failed=0
+clean 6: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2416138ns p95=3202528ns p99=3587774ns max=3798606ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2640324ns slow_passes=0 sends_failed=0
+clean 7: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2421568ns p95=3107662ns p99=3667912ns max=3789909ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2228739ns slow_passes=0 sends_failed=0
+clean 8: cpus=0 packets_in=61440 datagrams_out=66432 overruns=0 p50=2393475ns p95=3160019ns p99=3448786ns max=3692177ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3052960ns slow_passes=0 sends_failed=0
+level 384 clients: planted caught 3 of 3 runs, planted p50 above clean p50 by 5945248ns; clean p50 median=2408744ns (6272ns per client) p99 min=3448786ns max=3686867ns; clean over the 4 ms budget in 0 of 8 runs, with overruns in 0 of 8 runs, with fewer than 61440 packets in in 0 of 8 runs, loader behind in 0 of 8 runs
+== 512 clients: 51200 bytes in and 614400 bytes out per tick (512 datagrams of 1200 bytes)
+planted 1: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=9148761ns p95=9933890ns p99=10628560ns max=11086762ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3096231ns slow_passes=0 sends_failed=0
+planted 2: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=9145746ns p95=9948347ns p99=10727043ns max=11066594ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2950580ns slow_passes=0 sends_failed=0
+planted 3: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=9148589ns p95=9940189ns p99=11003866ns max=11098210ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2954467ns slow_passes=0 sends_failed=0
+clean 1: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3178182ns p95=4119479ns p99=4631270ns max=4992782ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2945490ns slow_passes=0 sends_failed=0
+clean 2: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3162543ns p95=4075739ns p99=4672878ns max=4790967ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2940521ns slow_passes=0 sends_failed=0
+clean 3: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3166751ns p95=4077432ns p99=4654845ns max=5040551ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2929330ns slow_passes=0 sends_failed=0
+clean 4: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3156652ns p95=4085678ns p99=4706160ns max=4896543ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2897161ns slow_passes=0 sends_failed=0
+clean 5: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3184152ns p95=4129637ns p99=4869972ns max=5090053ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2946041ns slow_passes=0 sends_failed=0
+clean 6: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3173682ns p95=4111574ns p99=4746633ns max=4931617ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2906327ns slow_passes=0 sends_failed=0
+clean 7: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3156842ns p95=4132423ns p99=4631199ns max=5018989ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2919801ns slow_passes=0 sends_failed=0
+clean 8: cpus=0 packets_in=81920 datagrams_out=88576 overruns=0 p50=3153891ns p95=4099416ns p99=4690182ns max=4919598ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=2900321ns slow_passes=0 sends_failed=0
+level 512 clients: planted caught 3 of 3 runs, planted p50 above clean p50 by 5986046ns; clean p50 median=3162543ns (6176ns per client) p99 min=4631199ns max=4869972ns; clean over the 4 ms budget in 8 of 8 runs, with overruns in 0 of 8 runs, with fewer than 81920 packets in in 0 of 8 runs, loader behind in 0 of 8 runs
+level 512 clients: WALL (over budget in 8, overruns in 0, packet loss in 0 of 8 runs)
+== 640 clients: 64000 bytes in and 768000 bytes out per tick (640 datagrams of 1200 bytes)
+planted 1: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=9947125ns p95=10912816ns p99=11820742ns max=12091244ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3654661ns slow_passes=0 sends_failed=0
+planted 2: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=9961609ns p95=10928845ns p99=11825650ns max=12166243ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3627146ns slow_passes=0 sends_failed=0
+planted 3: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=9967358ns p95=10935398ns p99=12152427ns max=12451522ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3599484ns slow_passes=0 sends_failed=0
+clean 1: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3917044ns p95=5130828ns p99=5768072ns max=6115477ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3576792ns slow_passes=0 sends_failed=0
+clean 2: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3964081ns p95=5109008ns p99=5800101ns max=6236160ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3592171ns slow_passes=0 sends_failed=0
+clean 3: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3936770ns p95=5039438ns p99=5768382ns max=6164848ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3617528ns slow_passes=0 sends_failed=0
+clean 4: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3948543ns p95=5046591ns p99=5776107ns max=6254474ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=4312608ns slow_passes=0 sends_failed=0
+clean 5: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3928646ns p95=5089962ns p99=5778160ns max=6087394ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3590037ns slow_passes=0 sends_failed=0
+clean 6: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3951567ns p95=5117624ns p99=5771217ns max=6076484ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3579917ns slow_passes=0 sends_failed=0
+clean 7: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3954142ns p95=5097585ns p99=5830727ns max=6341587ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3555623ns slow_passes=0 sends_failed=0
+clean 8: cpus=0 packets_in=102400 datagrams_out=110720 overruns=0 p50=3952049ns p95=5117322ns p99=5790162ns max=6191217ns rcvbuf_drops=-1packets
+   loader: max_pass_ns=3564699ns slow_passes=0 sends_failed=0
+level 640 clients: planted caught 3 of 3 runs, planted p50 above clean p50 by 6013066ns; clean p50 median=3948543ns (6169ns per client) p99 min=5768072ns max=5830727ns; clean over the 4 ms budget in 8 of 8 runs, with overruns in 0 of 8 runs, with fewer than 102400 packets in in 0 of 8 runs, loader behind in 0 of 8 runs
+level 640 clients: WALL (over budget in 8, overruns in 0, packet loss in 0 of 8 runs)
+stopping after 2 consecutive wall levels
+sweep: ok
+Post job cleanup.
+[command]/usr/bin/git version
+git version 2.56.0
+Temporarily overriding HOME='/home/runner/work/_temp/9459ee15-177b-4463-9c83-76e41cbd4d18' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+[command]/usr/bin/git config --global --add safe.directory /home/runner/work/transport-iouring-feed-server/transport-iouring-feed-server
+[command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+http.https://github.com/.extraheader
+[command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+[command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+[command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+[command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Cleaning up orphan processes

@@ -91,7 +91,7 @@ jobs:
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/tick-layouts.sh
       - name: Client sweep, one pinned server, planted defect at every level
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/client-sweep.sh
-      - name: Send path, plain against io_uring against SQPOLL
+      - name: Send path, plain against SQPOLL
         run: |
           cc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"
           BIN="$RUNNER_TEMP" bash deploy/scripts/ring-compare.sh
@@ -143,3 +143,21 @@ jobs:
           python3 -c "s=open('build/entity_predict.h').read(); o='return n >= 0 ? (2 * n + d) / (2 * d) : -((-2 * n + d) / (2 * d));'; assert o in s; open('build/plant/entity_predict.h','w').write(s.replace(o,'return n / d;'))"
           cc -std=c11 -I build/plant test/predict_golden.c -o build/predict_golden_plant
           if ./build/predict_golden_plant build/predict_golden.csv; then echo "planted truncation was not caught"; exit 1; fi
+
+  tick-wall:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Runner conditions
+        run: |
+          uname -r
+          nproc
+          grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+          if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
+      - name: Build the server and the loader
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_serve.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_serve"
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"
+      - name: Sweep the client count until the tick hits a wall
+        run: BIN="$RUNNER_TEMP" LEVELS="256 384 512 640 768 1024 1536 2048 3072 4096" RUNS=8 PLANTED=3 STOP_AFTER=2 bash deploy/scripts/client-sweep.sh
