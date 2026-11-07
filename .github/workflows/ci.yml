@@ -68,3 +68,25 @@ jobs:
           if ENTITY_SLOW_NS=6000000 /tmp/entity_check > /tmp/slow.out; then cat /tmp/slow.out; exit 1; fi
           cat /tmp/slow.out
           grep -q 'FAIL: p99 over the 4 ms budget' /tmp/slow.out
+  tick-budget:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Runner conditions
+        run: |
+          uname -r
+          nproc
+          lscpu -e
+          grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+          if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
+      - name: Build the loopback check
+        run: cc -std=gnu99 -O2 -Wall -Wextra -Werror -pthread transports/csrc/entity_check.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_check"
+      - name: Planted 6 ms handler must fail the 4 ms budget
+        run: |
+          for i in 1 2 3 4 5 6 7 8; do
+            if ENTITY_SLOW_NS=6000000 "$RUNNER_TEMP/entity_check"; then echo "run $i: planted defect not caught"; exit 1; fi
+          done
+      - name: Clean run stays inside the budget
+        run: |
+          for i in 1 2 3 4 5 6 7 8; do "$RUNNER_TEMP/entity_check" || exit 1; done
