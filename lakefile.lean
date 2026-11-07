@@ -41,7 +41,7 @@ target shim.o pkg : FilePath := do
   let lean ← getLeanInstall
   let cc : FilePath := "cc"
   let fl : Array String := #["-fPIC"]
-  buildO oFile src (fl ++ #["-I", (pkg.dir / "datasources" / "reference" / "vendor").toString] ++ sqliteDefs) #[] cc
+  buildO oFile src (fl ++ #["-I", (pkg.dir / "datasources" / "reference" / "vendor").toString, "-I", (pkg.dir / "datasources" / "store").toString] ++ sqliteDefs) #[] cc
 
 target glue.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "lean_glue.o"
@@ -73,7 +73,7 @@ target fdbvfs.o pkg : FilePath := do
     buildO oFile src #["-fPIC", "-O2", "-DFDB_API_VERSION=730", "-I", (pkg.dir / "datasources" / "store").toString, "-I", (pkg.dir / "datasources" / "reference" / "vendor").toString, "-I", "/usr/include/foundationdb"] #[] "cc"
   else
     let src ← inputTextFile (pkg.dir / "datasources" / "csrc" / "fdb_stub.c")
-    buildO oFile src #["-fPIC"] #[] "cc"
+    buildO oFile src #["-fPIC", "-I", (pkg.dir / "datasources" / "store").toString] #[] "cc"
 
 extern_lib libweftfdb pkg := do
   let o ← fdbvfs.o.fetch
