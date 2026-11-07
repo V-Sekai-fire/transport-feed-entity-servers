@@ -77,7 +77,20 @@ static int open_sqpoll(int fd) {
   cpu_set_t m;
   (void)fd;
   if (start(IORING_SETUP_SQPOLL) < 0) return -1;
-  tid = sq_tid();
+  /* the kernel thread may not exist, or carry its name, until the ring is first used: submit a NOP, then look */
+  {
+    struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+    struct io_uring_cqe *cqe;
+    if (sqe) {
+      io_uring_prep_nop(sqe);
+      if (io_uring_submit(&ring) >= 0 && io_uring_wait_cqe(&ring, &cqe) == 0) io_uring_cqe_seen(&ring, cqe);
+    }
+  }
+  tid = -1;
+  for (int tries = 0; tries < 100 && tid < 0; tries++) {
+    tid = sq_tid();
+    if (tid < 0) usleep(2000);
+  }
   if (tid < 0) { snprintf(info, sizeof info, "sq_thread=not-found"); return 0; }
   CPU_ZERO(&m);
   CPU_SET(SQ_CPU, &m);
