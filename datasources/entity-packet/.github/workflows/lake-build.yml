@@ -59,3 +59,25 @@ jobs:
         run: |
           lake build rot_check
           lake exe rot_check
+
+      # The integer makima kernel: properties, a distance to the Float reference, and a planted defect.
+      - name: Prediction kernel properties
+        run: |
+          lake build predict_check
+          lake exe predict_check
+      - name: The floor-division kernel is caught
+        run: "! lake exe predict_check plant"
+      - name: The committed prediction header and vectors are still the emitted ones
+        run: |
+          diff -u entity_predict.h build/entity_predict.h
+          diff -u predict_golden.csv build/predict_golden.csv
+      - name: The C prediction kernel agrees with the Lean numbers
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -I build test/predict_golden.c -o build/predict_golden
+          ./build/predict_golden build/predict_golden.csv
+      - name: A C kernel that truncates instead of rounding is caught
+        run: |
+          mkdir -p build/plant
+          python3 -c "s=open('build/entity_predict.h').read(); o='return n >= 0 ? (2 * n + d) / (2 * d) : -((-2 * n + d) / (2 * d));'; assert o in s; open('build/plant/entity_predict.h','w').write(s.replace(o,'return n / d;'))"
+          cc -std=c11 -I build/plant test/predict_golden.c -o build/predict_golden_plant
+          ! ./build/predict_golden_plant build/predict_golden.csv
