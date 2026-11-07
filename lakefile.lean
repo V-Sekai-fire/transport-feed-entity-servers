@@ -38,10 +38,17 @@ target glue.o pkg : FilePath := do
   let fl : Array String := #["-fPIC"]
   buildO oFile src (fl ++ #["-I", inc.toString, "-O2", "-fPIC"]) #[] cc
 
+target ring.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "csrc" / "ring_glue.o"
+  let src ← inputTextFile (pkg.dir / "csrc" / "ring_glue.c")
+  let inc ← getLeanIncludeDir
+  buildO oFile src #["-I", inc.toString, "-O2", "-fPIC"] #[] "cc"
+
 extern_lib libtd pkg := do
   let shim ← shim.o.fetch
   let glue ← glue.o.fetch
-  buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue]
+  let ring ← ring.o.fetch
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, ring]
 
 def linkLibs : Array String := if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
 
@@ -52,3 +59,9 @@ lean_exe «feed-tests» where
 lean_exe «sqlite-check» where
   root := `Tests.SqliteCheck
   moreLinkArgs := linkLibs
+
+def serveLibs : Array String := if System.Platform.isOSX then #[] else #["-luring", "-lpthread", "-lm"]
+
+lean_exe «feed-server» where
+  root := `Tests.Serve
+  moreLinkArgs := serveLibs

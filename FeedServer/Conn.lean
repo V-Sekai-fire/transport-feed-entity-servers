@@ -15,6 +15,7 @@ structure Conn where
   out        : ByteArray := ByteArray.empty
   /-- An incomplete request. -/
   pending    : ByteArray := ByteArray.empty
+deriving Inhabited
 
 /-- Port of `mark`: remember where this batch's output starts. -/
 def mark (c : Conn) : Conn :=
