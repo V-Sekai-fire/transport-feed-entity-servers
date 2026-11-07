@@ -1,6 +1,6 @@
 import FeedServer.Json
 import FeedServer.Sha256
-/-! HS256 JWT verification, ported from reference/src/jwt.rs. -/
+/-! HS256 JWT verification, ported from datasources/reference/src/jwt.rs. -/
 namespace FeedServer.Jwt
 
 inductive AuthError | missing | invalid | payload

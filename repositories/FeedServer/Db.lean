@@ -1,7 +1,7 @@
 import FeedServer.Record
 import FeedServer.Json
 import FeedServer.App
-/-! Database logic, ported from reference/src/db.rs.
+/-! Database logic, ported from datasources/reference/src/db.rs.
 All SQLite access goes through the abstract `Cursors` record. The FFI binding to the unmodified
 SQLite shim fills it in; tests fill it with an in-memory fake. Nothing here rewrites SQLite. -/
 namespace FeedServer.Db

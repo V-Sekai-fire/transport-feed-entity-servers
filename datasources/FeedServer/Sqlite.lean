@@ -1,5 +1,5 @@
 import FeedServer.Db
-/-! Binding to the unmodified SQLite shim (csrc/shim.c) through csrc/lean_glue.c.
+/-! Binding to the unmodified SQLite shim (datasources/csrc/shim.c) through datasources/csrc/lean_glue.c.
 Nothing here reimplements SQLite. Statuses from the glue are the shim result + 1. -/
 namespace FeedServer.Sqlite
 

@@ -1,7 +1,7 @@
 import FeedServer.Http
 import FeedServer.Json
 import FeedServer.Jwt
-/-! Routing and handlers, ported from reference/src/app.rs.
+/-! Routing and handlers, ported from datasources/reference/src/app.rs.
 Storage is abstract (`Store`): SQLite is bound over FFI elsewhere, never rewritten here. -/
 namespace FeedServer.App
 open Http
