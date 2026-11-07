@@ -19,7 +19,7 @@ lean_lib Datasources where
 @[default_target]
 lean_lib Transports where
   srcDir := "transports"
-  roots := #[`FeedServer.All, `FeedServer.Conn, `FeedServer.Server]
+  roots := #[`FeedServer.All, `FeedServer.Conn, `FeedServer.Server, `EntityServer.Tick]
 
 lean_lib TestSupport where
   srcDir := "entities/spec"
@@ -52,6 +52,15 @@ target glue.o pkg : FilePath := do
   let fl : Array String := #["-fPIC"]
   buildO oFile src (fl ++ #["-I", inc.toString, "-O2", "-fPIC"]) #[] cc
 
+target entity.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "csrc" / "entity_tick.o"
+  let src ← inputTextFile (pkg.dir / "transports" / "csrc" / "entity_tick.c")
+  buildO oFile src #["-O2", "-fPIC"] #[] "cc"
+target entityglue.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "csrc" / "entity_glue.o"
+  let src ← inputTextFile (pkg.dir / "transports" / "csrc" / "entity_glue.c")
+  let inc ← getLeanIncludeDir
+  buildO oFile src #["-I", inc.toString, "-O2", "-fPIC"] #[] "cc"
 target ring.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "ring_glue.o"
   let src ← inputTextFile (pkg.dir / "transports" / "csrc" / "ring_glue.c")
@@ -62,7 +71,9 @@ extern_lib libtd pkg := do
   let shim ← shim.o.fetch
   let glue ← glue.o.fetch
   let ring ← ring.o.fetch
-  buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, ring]
+  let ent ← entity.o.fetch
+  let eg ← entityglue.o.fetch
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, ring, ent, eg]
 
 /-- The store's FoundationDB VFS (subtree at datasources/store/), built against this repo's vendored sqlite3.h. -/
 target fdbvfs.o pkg : FilePath := do
@@ -104,4 +115,8 @@ def serveLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] els
 lean_exe «feed-server» where
   srcDir := "transports"
   root := `Serve
+  moreLinkArgs := serveLibs
+lean_exe «entity-server» where
+  srcDir := "transports"
+  root := `ServeEntity
   moreLinkArgs := serveLibs

@@ -5,8 +5,12 @@ twelve-dollar-server-challenge. The original source is kept in `datasources/refe
 
 SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-tree shim
 (`datasources/csrc/shim.c`, one portability guard for `SYS_gettid`) are bound over a thin Lean-ABI glue
-(`datasources/csrc/lean_glue.c`). The submission has no FoundationDB code. Storage sits behind
-`App.Store`, so an FDB backend could plug in there.
+(`datasources/csrc/lean_glue.c`). The submission has no FoundationDB code. A `fdb:<name>` path opens the store's FoundationDB VFS
+(`datasources/store`); CI checks open, write and reopen against a live cluster, and the parity figures
+below were measured on SQLite only.
+
+`entity-server` is a sibling of `feed-server`: a 64 Hz UDP tick (skateboard slice, plain syscalls, not yet
+io_uring), with the 100-byte packet layout from `datasources/entity-packet`. See RFD66606-2442 and RFD66606-2443.
 
 ## Layers
 - `Http`: request parser. Proved: a parsed request never claims more bytes than the buffer holds.

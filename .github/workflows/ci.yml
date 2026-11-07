@@ -48,3 +48,23 @@ jobs:
         if: failure()
         run: |
           gdb -batch -ex run -ex bt -ex "info sharedlibrary" --args .lake/build/bin/sqlite-check "fdb:ci-bt-${GITHUB_RUN_ID}" 2>&1 | tail -40
+  entity-tick:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build the tick object under strict C99
+        run: |
+          cd transports/csrc
+          gcc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -c entity_tick.c -o /tmp/entity_tick.o
+          gcc -std=gnu99 -Wall -Wextra -Werror -O2 entity_check.c /tmp/entity_tick.o -lpthread -o /tmp/entity_check
+      - name: The tick object has no allocator or Lean runtime symbols
+        run: |
+          if nm /tmp/entity_tick.o | grep -E ' U (malloc|free|lean_)'; then exit 1; fi
+      - name: Loopback check passes inside the 4 ms budget
+        run: /tmp/entity_check
+      - name: Planted slow handler must fail the budget
+        run: |
+          if ENTITY_SLOW_NS=6000000 /tmp/entity_check > /tmp/slow.out; then cat /tmp/slow.out; exit 1; fi
+          cat /tmp/slow.out
+          grep -q 'FAIL: p99 over the 4 ms budget' /tmp/slow.out
