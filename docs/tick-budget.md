@@ -163,3 +163,36 @@ The same job ran again on the branch after it was rebased onto `dev/entity-serve
 | 640 | 3949 | 6169 | 5768 to 5831 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs |
 
 Both runs bracket the wall the same way: inside the budget at 256 clients, over it in every run at 512 clients, and 384 clients sits on the edge (1 of 8 runs over in run 1, 0 of 8 in run 2, with the worst clean p99 at 5161 µs in run 1 and 3687 µs in run 2). Treat the wall as "between 384 and 512 clients", not as a client count. The p50 per client keeps falling slightly through 640 clients (6479, 6272, 6176, 6169 ns), so the session scan in `find()` has not shown up as a quadratic term yet. The planted p50 stayed 5.91 to 6.01 ms above the clean p50 at every level, so the control discriminated past the wall. Still no packet lost and no overrun at 640 clients, where the clean p50 is 3.9 ms, about 25 % of the 15.6 ms slot.
+
+## One server against two servers (a HORZ split)
+
+`client-sweep.sh` takes `SERVERS=2`: each level splits evenly over two servers on vCPU 0 and 2 (separate physical cores), the loader on vCPU 3, the planted 6 ms handler on server 1 only. `tick-wall` runs 512, 640 and 1024 clients as one server and as two, level by level, 8 clean runs and 3 planted runs each, so runner drift lands on both. The loader sits on vCPU 3 in both modes. The earlier single-server sweeps had it on vCPU 2, the same physical core, so compare these rows with each other and not with the wall-sweep tables.
+
+Run output: `study/two-servers-run-1.txt`. 64 Hz, 4 ms p99 budget, loopback, one runner. **No entity is shared between the servers, so there is no border traffic. This is the best case for a split.**
+
+Clean p99 median (min to max), in µs:
+
+| Clients | One server | Two servers: server 0 | Two servers: server 1 | Over 4 ms, one server | Over 4 ms, two servers |
+| --- | --- | --- | --- | --- | --- |
+| 512 | 4037 (3884 to 6219) | 1945 (1934 to 2118) | 2176 (2148 to 2293) | 4 of 8 runs | 0 of 8 runs |
+| 640 | 4868 (4816 to 6125) | 2547 (2408 to 3890) | 2737 (2613 to 3683) | 8 of 8 runs | 0 of 8 runs |
+| 1024 | 8439 (7518 to 15231) | 3858 (3749 to 3899) | 4164 (4013 to 4336) | 8 of 8 runs | 8 of 8 runs |
+
+Clean p50 per client, in ns: one server 5134, 5116, 5350 at 512, 640, 1024 clients; server 0 5078, 5143, 5107; server 1 5172, 5224, 5207. Splitting did not change the cost per client.
+
+Predictions written before the run, against the result:
+
+- **Two servers at 640 clients, about 2.9 ms on each, 0 of 8 runs over: held.** Medians were 2.55 and 2.74 ms, 0 of 8 runs over.
+- **Two servers at 512 clients, about 2.3 ms, 0 of 8 runs over: held.** Medians were 1.95 and 2.18 ms.
+- **Two servers at 1024 clients, over in 8 of 8 runs (the negative control): held, by server 1 only.** Server 1 was over in every run (4.01 to 4.34 ms). Server 0 stayed under (3.75 to 3.90 ms), and the run counts as over because the slowest server was.
+- **One server at 512 clients, over in 8 of 8 runs: missed.** It was over in 4 of 8 runs. Both earlier wall sweeps had 8 of 8. This runner cost 5.1 µs of p50 per client against 6.2 to 6.5 µs there, so the 512-client wall sat closer to 640 clients in this job. That is runner drift. It is why levels are compared inside one job.
+- **Falsifier: p99 above 3.6 ms on a server at 640 clients, or a gap above 0.3 ms between servers: partly tripped.** 2 of 8 runs had one server above 3.6 ms (3.89 and 3.68 ms single-run p99), while the medians sit at 2.55 and 2.74 ms, so those are tail events and not a level shift. The gap between the servers' p99 medians was 0.19 ms at 640 clients, and 0.23 and 0.31 ms at 512 and 1024 clients, so it crossed 0.3 ms at 1024 clients.
+
+**Server 1 is consistently slower than server 0**, by 1.5 to 2.0 % of p50 and 9 to 12 % of p99 median at all three levels. Server 1 runs on vCPU 2, whose SMT sibling vCPU 3 carries the loader, while server 0's sibling vCPU 1 is idle. That fits a cost from sharing a core with the loader. It is one placement and one run, so this does not isolate SMT from the loader's memory traffic. Swapping the two servers' vCPUs would test it.
+
+**The planted defect on server 1 did not reach server 0.** Server 0's p50 median in the planted runs against its clean median: +11 µs at 512 clients, -14 µs at 640 and -21 µs at 1024, which is noise on either side of zero. The planted control held on server 1 at every level (its p50 sat 6.24, 6.30 and 6.29 ms above its clean p50). No tolerance was set on the server 0 figure; the numbers are reported.
+
+What it shows: at 64 Hz on this VM, two 320-client cells are served at about half the p99 of one 640-client cell, with no loss, no overrun and the same cost per client. The 4 ms wall moves from 512 to 640 clients (one server) to between 640 and 1024 clients (two servers, where server 1 crosses first). At 1024 clients the single server also overran its slot in 1 of 8 runs and lost packets in 2 of 8 runs; the two-server run had neither.
+
+What it does not show: any cost of a shared border (the open interest-grid and server-to-server boxes in #7), 144 Hz, or a split across hosts. Four vCPUs are shared by two servers and a loader, so a split onto real separate machines is not tested here.
+
