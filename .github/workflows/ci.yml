@@ -60,6 +60,10 @@ jobs:
           lscpu -e
           grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
           if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
+      - name: Probe io_uring (a block is reported, not failed)
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/ring_probe.c -o "$RUNNER_TEMP/ring_probe"
+          "$RUNNER_TEMP/ring_probe"
       - name: Build the tick object under strict C99 and link the loopback check
         run: |
           gcc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_tick.o"
