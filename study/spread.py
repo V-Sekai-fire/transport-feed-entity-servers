@@ -1,4 +1,5 @@
 import json, os, re, statistics as st, subprocess, sys
+from patterns import CHECK, LAYOUT
 
 def mint():
     for _ in range(5):
@@ -31,7 +32,7 @@ for r in runs:
         jobs += 1
         L = lines(j["id"])
         for i, l in enumerate(L):
-            m = re.search(r"ticks=(\d+) .*overruns=(\d+) p50=(\d+) p95=(\d+) p99=(\d+) max=(\d+)", l)
+            m = CHECK.search(l)
             if m and i + 1 < len(L):
                 t, o, p50, p95, p99, mx = map(int, m.groups())
                 if "PASS" in L[i + 1]:
@@ -40,14 +41,13 @@ for r in runs:
                 elif "FAIL: p99" in L[i + 1]:
                     planted.append(p99)
             if l.startswith("clean "):
-                for m in re.finditer(r"[AB] cpus=\S+ p50=(\d+) p95=(\d+) p99=(\d+) max=(\d+)", l):
+                for m in LAYOUT.finditer(l):
                     a, _, c, d = map(int, m.groups())
                     layout.append((192, a, c, d))
 
 def report(name, rows):
     if not rows:
-        print(name, "no rows")
-        return
+        sys.exit(f"{name}: 0 rows parsed from {jobs} tick-budget jobs; the log format changed")
     p50 = [x[1] for x in rows]
     p99 = [x[2] for x in rows]
     mx = [x[3] for x in rows]
