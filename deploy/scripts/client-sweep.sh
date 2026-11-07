@@ -16,7 +16,8 @@ BACKEND=${BACKEND:-plain} # plain, or nosend: the same tick with the sendto call
 LEVELS=${LEVELS:-"1 4 16 64 256"}
 SERVERS=${SERVERS:-1}
 TICKS=192 SENDS=160 PORT=47321 MIN_DELTA_NS=5000000
-SVC=(0 2)
+# SERVER_CPUS="2 0" swaps the servers' vCPUs; ENTITY_LOAD_ORDER=interleave makes the loader alternate between the servers in each pass
+read -r -a SVC <<< "${SERVER_CPUS:-0 2}"
 case "$SERVERS" in
   1) LD=${LD:-2} ;;
   2) LD=${LD:-3} ;;

@@ -159,6 +159,17 @@ jobs:
             BIN="$RUNNER_TEMP" SERVERS=2 LD=3 LEVELS=$n RUNS=8 PLANTED=3 bash deploy/scripts/client-sweep.sh || rc=1
           done
           exit $rc
+      - name: Two servers at 640 clients, vCPU placement against send order
+        run: |
+          rc=0
+          cell() {
+            echo "#### cell: servers on vCPU $1, loader send order $2"
+            BIN="$RUNNER_TEMP" SERVERS=2 LD=3 SERVER_CPUS="$1" ENTITY_LOAD_ORDER="$2" LEVELS=640 RUNS=8 PLANTED=3 bash deploy/scripts/client-sweep.sh || rc=1
+          }
+          for c in "0 2:blocked" "2 0:blocked" "0 2:interleave" "2 0:interleave" "2 0:interleave" "0 2:interleave" "2 0:blocked" "0 2:blocked"; do
+            cell "${c%%:*}" "${c##*:}"
+          done
+          exit $rc
   tick-nosend:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
