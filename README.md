@@ -28,3 +28,11 @@ SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-t
 - Each SQLite payload is copied once into a `ByteArray`.
 - Held writes are retried each pass.
 - Not load-tested, so no throughput claim.
+
+## Build
+```
+bash scripts/fetch-sqlite.sh      # pinned SQLite amalgamation, sha256-checked
+lake build feed-tests && lake exe feed-tests
+podman build -t feed-lean -f Containerfile .
+podman run --rm --privileged -v "$PWD":/src:ro feed-lean bash /src/scripts/accept.sh
+```
