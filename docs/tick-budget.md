@@ -286,7 +286,29 @@ What it shows: the extra tail follows the vCPU, not the server index and not the
 
 What it does not show:
 
-- **Whether the interleave setting was applied in this run.** The loader's `order=` field was not in the printed output, so this log cannot prove it. A single-binary check on the Mac shows the loader reads `ENTITY_LOAD_ORDER` and prints `order=interleave`. `client-sweep.sh` now prints `order=` for every run, so the next run will carry the proof. Until then, the "send order has no effect" reading rests on that unverified setting.
+- **Whether the interleave setting was applied in run 1.** The loader's `order=` field was not in the printed output of run 1, so that log cannot prove it. Run 2 below prints it and shows it applied.
 - **Why vCPU 2 is slower.** Sharing a core with the loader on vCPU 3 fits, but vCPU 2 could differ from vCPU 0 for another reason. Moving the loader to vCPU 1, the sibling of vCPU 0, would separate the two: if the penalty moves to vCPU 0, it is the loader's core.
 
 Planning figure: a server on the loader's core pays about 0.6 ms of extra p99 at 640 clients at 64 Hz. Keep the loader off the servers' cores on a real deployment, which this harness cannot show. One runner, loopback, no shared entities.
+
+#### Second run (CI rerun after the loader's `order=` field was printed)
+
+Run output: `study/placement-order-run-2.txt`. Same job, same 2x2, ABBA order, 16 clean runs per cell. Every one of the 22 loader lines in each cell read back the order that cell asked for, so the interleave setting reached the loader.
+
+Clean runs, medians over 16 runs, in µs:
+
+| Servers on vCPU | Send order | Server 0: p50, p99 | Server 1: p50, p99 | Server 1 minus server 0: p50, p99 |
+| --- | --- | --- | --- | --- |
+| 0 and 2 | blocked | 2198, 3059 | 2227, 3666 | +29, +606 |
+| 0 and 2 | interleave | 2255, 3126 | 2291, 3700 | +35, +573 |
+| 2 and 0 | blocked | 2339, 3677 | 2240, 3078 | -100, -599 |
+| 2 and 0 | interleave | 2319, 3700 | 2239, 3052 | -80, -647 |
+
+Pooled over all four cells (64 runs each): the server on vCPU 0 had a p99 median of 3074 µs and the server on vCPU 2 had 3687 µs, a gap of 613 µs. Pooled by sent-to position: server 0 had 3599 µs and server 1 had 3575 µs, a gap of 24 µs (server 0 slower this time). The planted p50 sat 5.96 to 6.44 ms above the clean p50 in every visit.
+
+- **The result of run 1 holds.** The tail penalty follows the vCPU: about 0.6 ms of p99 on vCPU 2 in all four cells (573 to 647 µs), with the sign flipping when the servers swap. Interleaving the send order moved the gap by 33 µs at most (606 to 573 µs, and 599 to 647 µs), inside the spread between the two runs. So send order is not the cause.
+- **This runner was slower than run 1.** The pooled p99 on vCPU 0 rose from 3021 to 3074 µs and on vCPU 2 from 3611 to 3687 µs. Compare cells inside one run.
+- **Clean runs over the 4 ms budget: 5 of 64 runs in run 2 (visits to the cells with servers on 0 and 2: 2 of 8 runs twice; servers on 2 and 0, interleave: 1 of 8 runs), 0 of 64 runs in run 1.** The server on vCPU 2 is the one near the budget, with a p99 median of 3.69 ms at 640 clients, 0.31 ms below it. Treat 640 clients as the edge for the server that shares a core with the loader.
+
+What it shows: at 640 clients the server on the loader's core pays about 0.6 ms of extra p99, which is 9 % of a 6.94 ms period at 144 Hz (unmeasured there). Not shown: whether the penalty comes from sharing the core's execution units or its caches with the loader, or from something specific to vCPU 2. Moving the loader to vCPU 1, the sibling of vCPU 0, would separate those: if the penalty moves to vCPU 0, it is the loader's core. One runner, 64 Hz, loopback, no shared entities.
+
