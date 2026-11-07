@@ -1,4 +1,5 @@
 import FeedServer
+import Fake
 open FeedServer
 
 def b (s : String) : ByteArray := s.toUTF8
@@ -59,7 +60,8 @@ def main : IO UInt32 := do
     postExists := fun id => pure (.ok (id == 7))
     insertLike := fun u p => do
       let ls ← likes.get
-      if ls.contains (u, p) then pure (.ok false) else do likes.set (ls.push (u, p)); pure (.ok true) }
+      if ls.contains (u, p) then pure (.ok false) else do likes.set (ls.push (u, p)); pure (.ok true)
+    commit := pure true }
   let secret := b "twelve-dollar-challenge"
   let mk := fun (payload : String) =>
     let h := Jwt.b64urlEncode (b "{\"alg\":\"HS256\",\"typ\":\"JWT\"}")
@@ -68,7 +70,8 @@ def main : IO UInt32 := do
     String.fromUTF8! (signed ++ b "." ++ Jwt.b64urlEncode (Sha256.hmac secret signed))
   let tok := mk "{\"sub\":\"3\",\"username\":\"ann\",\"exp\":4102444800}"
   let expired := mk "{\"sub\":\"3\",\"username\":\"ann\",\"exp\":1}"
-  let env : App.Env := { store, secret, nowSecs := pure 1.8e9, uptimeS := pure 5 }
+  let wrote ← IO.mkRef false
+  let env : App.Env := { store, wrote, secret, nowSecs := pure 1.8e9, uptimeS := pure 5 }
   let run := fun (raw : String) => do
     match Http.parse (b raw) with
     | .done r _ => pure (String.fromUTF8! (← App.handle env r))
@@ -91,6 +94,30 @@ def main : IO UInt32 := do
   let l2 ← run s!"POST /posts/7/like HTTP/1.1\r\nAuthorization: Bearer {tok}\r\n\r\n"
   results := results.push (← check "like 201 then 200" (has l1 "201 Created" && has l1 "\"already_liked\":false" && has l2 "200 OK" && has l2 "\"already_liked\":true"))
   results := results.push (← check "like missing post" (has (← run s!"POST /posts/9/like HTTP/1.1\r\nAuthorization: Bearer {tok}\r\n\r\n") "404 Not Found"))
+  -- Db layer over fake cursors
+  let expectedFeed := "{\"posts\":[{\"id\":3,\"body\":\"c\",\"created_at\":\"2026-01-01T00:00:03.000Z\",\"author\":\"ann\",\"like_count\":0},{\"id\":2,\"body\":\"b\\\"q\",\"created_at\":\"2026-01-01T00:00:02.000Z\",\"author\":\"bob\",\"like_count\":2},{\"id\":1,\"body\":\"a\",\"created_at\":\"2026-01-01T00:00:01.000Z\",\"author\":\"ann\",\"like_count\":1}]}"
+  for fast in [true, false] do
+    let cs ← Fake.cursors fast
+    let st := Db.store cs
+    let f ← st.feed
+    results := results.push (← check s!"db feed (range walk fast={fast})" (match f with | .ok x => String.fromUTF8! x == expectedFeed | _ => false))
+    let p ← st.post 2
+    results := results.push (← check s!"db post 2 (fast={fast})" (match p with
+      | .ok (some x) => String.fromUTF8! x == "{\"post\":{\"id\":2,\"body\":\"b\\\"q\",\"created_at\":\"2026-01-01T00:00:02.000Z\",\"author\":\"bob\",\"like_count\":2}}"
+      | _ => false))
+  let cs ← Fake.cursors true
+  let st := Db.store cs
+  results := results.push (← check "db post missing" (match ← st.post 9 with | .ok none => true | _ => false))
+  results := results.push (← check "db postExists" (match ← st.postExists 1, ← st.postExists 5 with | .ok true, .ok false => true | _, _ => false))
+  -- commit semantics: wrote flag set by create, cleared by endBatch
+  let w2 ← IO.mkRef false
+  let env2 : App.Env := { store := st, wrote := w2, secret, nowSecs := pure 1.8e9, uptimeS := pure 0 }
+  let cbody := "{\"body\":\"x\"}"
+  match Http.parse (b s!"POST /posts HTTP/1.1\r\nAuthorization: Bearer {tok}\r\nContent-Length: {cbody.utf8ByteSize}\r\n\r\n{cbody}") with
+  | .done r _ => let _ ← App.handle env2 r
+  | _ => pure ()
+  results := results.push (← check "wrote set after create" (← w2.get))
+  results := results.push (← check "endBatch commits and clears" ((← App.endBatch env2) && !(← w2.get)))
   -- SQLite record decoding
   results := results.push (← check "varint 1 byte" (Record.varint (ByteArray.mk #[0x7f]) 0 == some (127, 1)))
   results := results.push (← check "varint 2 bytes (128)" (Record.varint (ByteArray.mk #[0x81, 0x00]) 0 == some (128, 2)))

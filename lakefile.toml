@@ -5,6 +5,11 @@ defaultTargets = ["FeedServer"]
 [[lean_lib]]
 name = "FeedServer"
 
+[[lean_lib]]
+name = "TestSupport"
+srcDir = "Tests"
+roots = ["Fake"]
+
 [[lean_exe]]
 name = "feed-tests"
 root = "Tests.Main"

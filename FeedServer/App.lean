@@ -13,9 +13,13 @@ structure Store where
   insertPost  : Int → ByteArray → IO (Except String (Int × ByteArray))
   postExists  : Int → IO (Except String Bool)
   insertLike  : Int → Int → IO (Except String Bool)
+  /-- COMMIT the batch's transaction; false if it was rolled back. -/
+  commit      : IO Bool
 
 structure Env where
   store    : Store
+  /-- Set when the batch wrote: its responses must wait for COMMIT. -/
+  wrote    : IO.Ref Bool
   secret   : ByteArray
   nowSecs  : IO Float
   uptimeS  : IO Nat
@@ -102,6 +106,7 @@ def create (env : Env) (req : Request) : IO ByteArray := do
           match ← env.store.insertPost uid s.toUTF8 with
           | .error _ => pure internal
           | .ok (id, created) =>
+            env.wrote.set true
             pure (response 201 (lit s!"\{\"post\":\{\"id\":{id},\"body\":\"" ++ esc s.toUTF8
               ++ lit "\",\"created_at\":\"" ++ esc created ++ lit "\",\"author\":\"" ++ esc username
               ++ lit "\",\"like_count\":0}}"))
@@ -121,6 +126,7 @@ def like (env : Env) (req : Request) (idBytes : ByteArray) : IO ByteArray := do
         match ← env.store.insertLike uid id with
         | .error _ => pure internal
         | .ok isNew =>
+          if isNew then env.wrote.set true
           pure (response (if isNew then 201 else 200)
             (lit s!"\{\"liked\":true,\"already_liked\":{!isNew},\"post_id\":{id}}"))
 
@@ -148,5 +154,15 @@ def handle (env : Env) (req : Request) : IO ByteArray := do
       like env req idb
     else pure (errorResp 404 "not found")
   else pure (errorResp 404 "not found")
+
+/-- End of a batch: COMMIT, then clear `wrote`. Returns whether the commit held.
+When it is false, every response of the batch that answered must be replaced by a 500
+(`rolledBack`), so no client sees a success for a write that did not land. -/
+def endBatch (env : Env) : IO Bool := do
+  let ok ← env.store.commit
+  env.wrote.set false
+  pure ok
+
+def rolledBack : ByteArray := internal
 
 end FeedServer.App
