@@ -10,6 +10,7 @@ BIN=${BIN:?directory holding entity_serve and entity_load}
 RUNS=${RUNS:-8}
 PLANTED=${PLANTED:-$RUNS}
 STOP_AFTER=${STOP_AFTER:-0}
+BACKEND=${BACKEND:-plain} # plain, or nosend: the same tick with the sendto calls skipped (a control)
 LEVELS=${LEVELS:-"1 4 16 64 256"}
 TICKS=192 SENDS=160 PORT=47321 SV=0 LD=2 MIN_DELTA_NS=5000000
 HERE=$(cd "$(dirname "$0")/../.." && pwd)
@@ -41,7 +42,7 @@ fi
 
 once() {
   local n=$1 slow=$2
-  pinned "$SV" "$BIN/entity_serve" S $PORT $TICKS "$slow" > "$T/s.out" &
+  pinned "$SV" "$BIN/entity_serve" S $PORT $TICKS "$slow" "$BACKEND" > "$T/s.out" &
   local ps=$!
   sleep 0.3
   pinned "$LD" "$BIN/entity_load" $SENDS "$n" $PORT > "$T/l.out" 2> "$T/l.err"
