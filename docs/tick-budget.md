@@ -69,3 +69,18 @@ The tick path does not touch the store, so none of these numbers say whether the
 ## Units
 
 Every number the harness prints carries its unit or a noun: latencies are `p50=126036ns`, counts are `packets_in=2560` and `datagrams_out=2768` (totals over the whole run, not bytes and not per tick), and the sweep summary puts `ns` on each value. A wrapper must not strip a unit, for example with `cut`. A parser that reads these lines must accept the suffix.
+
+## io_uring probe
+
+`transports/csrc/ring_probe.c` runs first in `tick-budget`. It calls `io_uring_setup` directly (no liburing) and prints the `io_uring_disabled` setting, the `Seccomp:` line, the uid, and the result of three calls: a control with 0 entries, a plain ring of 8 entries, and an SQPOLL ring of 8 entries. A block is reported and does not fail the job. The job fails only if the control does not read back `EINVAL`, because then the probe is not reporting the kernel's answer.
+
+First run, kernel `7.0.0-1017-azure`, uid 1001:
+
+- `io_uring_disabled` was 0, which means io_uring is on for everyone.
+- `Seccomp` was 0, which means no seccomp filter on the process.
+- The control with 0 entries failed with `EINVAL`, as it must.
+- The plain ring was created: 8 submission entries, 16 completion entries, features `0x3ffff`.
+- The SQPOLL ring was created with the same sizes.
+
+So the runner does not block io_uring, and the comparison against plain syscalls can run on it. That a ring can be created does not show that SQPOLL helps: with one vCPU per server it would poll on the tick's own core or take the spare, so it stays a separate labelled variant. One runner, one kernel, one run: a different runner image can answer differently, and every run of the job reprints the probe.
+
