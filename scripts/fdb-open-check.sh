@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 bin=.lake/build/bin/sqlite-check
 fail=0
 out=$(WEFT_FDB_CLUSTER_FILE=/nonexistent timeout 60 "$bin" "fdb:x" 2>&1); rc=$?
-case "$out" in *"open: open:"*) ;; *) echo "FAIL fdb: path was not refused as an open error (rc=$rc): $out"; fail=1;; esac
+case "$out" in *"open: "*) ;; *) echo "FAIL fdb: path was not refused as an open error (rc=$rc): $out"; fail=1;; esac
 [ "$rc" -ne 0 ] || { echo "FAIL fdb: path with no cluster exited 0"; fail=1; }
 out=$(timeout 60 "$bin" /nonexistent.db 2>&1); rc=$?
 case "$out" in *"unable to open database file"*) ;; *) echo "FAIL default path error changed: $out"; fail=1;; esac

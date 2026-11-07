@@ -62,9 +62,9 @@ static int fail(char *err, int n, const char *what) {
 /* The store's FoundationDB VFS (store/fdb_vfs.c, built as libweftfdb). A path "fdb:<name>" opens
  * <name> through it. That VFS has no WAL and no shared memory: it needs journal_mode=MEMORY, and
  * it commits atomically itself, so this mode has no WAL hook and no checkpoint thread. */
-/* Weak, so a build without the FDB client still links; "fdb:" then fails with a clear error. */
-extern int weft_fdb_start(const char *cluster_file) __attribute__((weak));
-extern int weft_vfs_register(int make_default) __attribute__((weak));
+/* From store/fdb_vfs.c, or from csrc/fdb_stub.c (which refuses) where the FDB client is absent. */
+extern int weft_fdb_start(const char *cluster_file);
+extern int weft_vfs_register(int make_default);
 static int fdb_mode;
 static const char FDB_SCHEMA[] =
   "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE,"
@@ -185,10 +185,6 @@ int td_open(const char *path, char *err, int n) {
     fdb_mode = 1;
     vfs = "weft_fdb";
     oflags |= SQLITE_OPEN_CREATE;
-    if (!weft_fdb_start || !weft_vfs_register) {
-      snprintf(err, n, "fdb: not linked into this build");
-      return -1;
-    }
     int e = weft_fdb_start(getenv("WEFT_FDB_CLUSTER_FILE"));
     if (e) { snprintf(err, n, "fdb start: error %d", e); return -1; }
     if (weft_vfs_register(0)) { snprintf(err, n, "fdb vfs: register failed"); return -1; }
