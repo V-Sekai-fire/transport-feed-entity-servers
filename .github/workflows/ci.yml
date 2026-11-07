@@ -1,0 +1,46 @@
+# Unit checks and a live check of the fdb: open path against a real FoundationDB.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main, "dev/**"]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  fdb-open:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      FDB_VERSION: "7.3.76"
+      WEFT_FDB_CLUSTER_FILE: /etc/foundationdb/fdb.cluster
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo -S -p '' apt-get install -y --no-install-recommends liburing-dev sqlite3 curl unzip
+      - name: Install FoundationDB
+        run: |
+          for p in clients server; do
+            curl -fsSL -o /tmp/$p.deb "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-${p}_${FDB_VERSION}-1_amd64.deb"
+          done
+          sudo -S -p '' dpkg -i /tmp/clients.deb /tmp/server.deb
+          ok=0
+          for i in $(seq 1 30); do
+            if fdbcli --exec 'status minimal' | grep -q 'The database is available'; then ok=1; break; fi
+            sleep 2
+          done
+          [ "$ok" = 1 ] || { echo "FoundationDB never became available"; exit 1; }
+      - name: Install Lean
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch the pinned SQLite
+        run: bash scripts/fetch-sqlite.sh
+      - name: Build
+        run: lake build feed-tests sqlite-check
+      - name: Unit tests
+        run: lake exe feed-tests
+      - name: Cluster-free fdb open checks
+        run: bash scripts/fdb-open-check.sh
+      - name: Live fdb check
+        run: bash scripts/fdb-live-check.sh "ci-${GITHUB_RUN_ID}"
