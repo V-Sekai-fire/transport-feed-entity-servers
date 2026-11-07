@@ -1,0 +1,110 @@
+##[group]Run cc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"
+^[[36;1mcc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"^[[0m
+^[[36;1mBIN="$RUNNER_TEMP" bash deploy/scripts/ring-compare.sh^[[0m
+shell: /usr/bin/bash -e {0}
+##[endgroup]
+== 64 clients
+planted plain 1: p99=6554714ns datagrams_out=11072 
+planted plain 2: p99=6534253ns datagrams_out=11072 
+planted plain 3: p99=6505040ns datagrams_out=11072 
+planted plain 4: p99=6503007ns datagrams_out=11072 
+planted plain 5: p99=6495376ns datagrams_out=11072 
+planted plain 6: p99=6502907ns datagrams_out=11072 
+planted plain 7: p99=6548084ns datagrams_out=11072 
+planted plain 8: p99=6504779ns datagrams_out=11072 
+planted ring 1: p99=6488635ns datagrams_out=11072 
+planted ring 2: p99=6478781ns datagrams_out=11072 
+planted ring 3: p99=6508335ns datagrams_out=11328 
+planted ring 4: p99=6482787ns datagrams_out=11072 
+planted ring 5: p99=6793104ns datagrams_out=11072 
+planted ring 6: p99=6497335ns datagrams_out=11072 
+planted ring 7: p99=6499372ns datagrams_out=11072 
+planted ring 8: p99=6490307ns datagrams_out=11072 
+planted sqpoll 1: p99=6561705ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 2: p99=6540333ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 3: p99=6550666ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 4: p99=6489474ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 5: p99=6498698ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 6: p99=6546763ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 7: p99=6509887ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 8: p99=6516978ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 1: p99=510087ns datagrams_out=11072 
+clean ring 1: p99=534664ns datagrams_out=11072 
+clean sqpoll 1: p99=489897ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 2: p99=467062ns datagrams_out=11072 
+clean ring 2: p99=790589ns datagrams_out=11072 
+clean sqpoll 2: p99=573062ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 3: p99=476277ns datagrams_out=11072 
+clean ring 3: p99=534824ns datagrams_out=11072 
+clean sqpoll 3: p99=464849ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 4: p99=531509ns datagrams_out=11072 
+clean ring 4: p99=532120ns datagrams_out=11072 
+clean sqpoll 4: p99=657829ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 5: p99=496417ns datagrams_out=11072 
+clean ring 5: p99=463336ns datagrams_out=11072 
+clean sqpoll 5: p99=583727ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 6: p99=455895ns datagrams_out=11072 
+clean ring 6: p99=516126ns datagrams_out=11072 
+clean sqpoll 6: p99=506802ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 7: p99=457878ns datagrams_out=11072 
+clean ring 7: p99=485821ns datagrams_out=11072 
+clean sqpoll 7: p99=476357ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+clean plain 8: p99=511879ns datagrams_out=11072 
+clean ring 8: p99=511679ns datagrams_out=11072 
+clean sqpoll 8: p99=469687ns datagrams_out=11072 sq_thread_cpus=3 pin_rc=0
+level 64 clients, plain: planted caught 8 of 8 runs; clean p99 min=455895ns max=531509ns; clean over the 4 ms budget in 0 of 8 runs
+level 64 clients, ring: planted caught 8 of 8 runs; clean p99 min=463336ns max=790589ns; clean over the 4 ms budget in 0 of 8 runs
+level 64 clients, sqpoll: planted caught 8 of 8 runs; clean p99 min=464849ns max=657829ns; clean over the 4 ms budget in 0 of 8 runs
+== 256 clients
+planted plain 1: p99=9989687ns datagrams_out=44288 
+planted plain 2: p99=7733556ns datagrams_out=44288 
+planted plain 3: p99=8035539ns datagrams_out=44288 
+planted plain 4: p99=7724263ns datagrams_out=44288 
+planted plain 5: p99=7784422ns datagrams_out=44288 
+planted plain 6: p99=8230994ns datagrams_out=45056 
+planted plain 7: p99=8209512ns datagrams_out=44288 
+planted plain 8: p99=7699345ns datagrams_out=44288 
+planted ring 1: p99=8004644ns datagrams_out=44288 
+planted ring 2: p99=7994128ns datagrams_out=44288 
+planted ring 3: p99=7768358ns datagrams_out=44288 
+planted ring 4: p99=7747917ns datagrams_out=44288 
+planted ring 5: p99=7703070ns datagrams_out=44288 
+planted ring 6: p99=7794748ns datagrams_out=44288 
+planted ring 7: p99=8247710ns datagrams_out=44288 
+planted ring 8: p99=7660587ns datagrams_out=44288 
+planted sqpoll 1: p99=7788890ns datagrams_out=44032 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 2: p99=7947248ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 3: p99=7933197ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 4: p99=8065976ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 5: p99=7907548ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 6: p99=7915601ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 7: p99=7881899ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+planted sqpoll 8: p99=7909481ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+clean plain 1: p99=1718794ns datagrams_out=44288 
+clean ring 1: p99=2325236ns datagrams_out=44288 
+clean sqpoll 1: p99=2822684ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+clean plain 2: p99=1910782ns datagrams_out=44288 
+clean ring 2: p99=1761599ns datagrams_out=44288 
+clean sqpoll 2: p99=1983782ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+clean plain 3: p99=1696961ns datagrams_out=44288 
+clean ring 3: p99=1666716ns datagrams_out=44288 
+clean sqpoll 3: p99=1772144ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+clean plain 4: p99=1723000ns datagrams_out=44288 
+clean ring 4: p99=1703541ns datagrams_out=44288 
+clean sqpoll 4: p99=1718504ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+clean plain 5: p99=1684072ns datagrams_out=44288 
+clean ring 5: p99=1696140ns datagrams_out=44288 
+clean sqpoll 5: p99=1717141ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+clean plain 6: p99=1690332ns datagrams_out=44288 
+clean ring 6: p99=1682379ns datagrams_out=44288 
+clean sqpoll 6: p99=1774388ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+clean plain 7: p99=1966296ns datagrams_out=44800 
+clean ring 7: p99=2185035ns datagrams_out=44288 
+clean sqpoll 7: p99=2039547ns datagrams_out=47104 sq_thread_cpus=3 pin_rc=0
+clean plain 8: p99=1701979ns datagrams_out=44288 
+clean ring 8: p99=1893276ns datagrams_out=44288 
+clean sqpoll 8: p99=1748859ns datagrams_out=44288 sq_thread_cpus=3 pin_rc=0
+level 256 clients, plain: planted caught 8 of 8 runs; clean p99 min=1684072ns max=1966296ns; clean over the 4 ms budget in 0 of 8 runs
+level 256 clients, ring: planted caught 8 of 8 runs; clean p99 min=1666716ns max=2325236ns; clean over the 4 ms budget in 0 of 8 runs
+level 256 clients, sqpoll: planted caught 8 of 8 runs; clean p99 min=1717141ns max=2822684ns; clean over the 4 ms budget in 0 of 8 runs
+ring-compare: ok
