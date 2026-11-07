@@ -1,4 +1,4 @@
-/-! JSON reader and writer, ported from reference/src/json.rs. -/
+/-! JSON reader and writer, ported from datasources/reference/src/json.rs. -/
 namespace FeedServer.Json
 
 def _root_.ByteArray.get? (b : ByteArray) (i : Nat) : Option UInt8 :=

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Fetches the pinned SQLite amalgamation into reference/vendor (sha256-checked), as reference/build.sh does.
+# Fetches the pinned SQLite amalgamation into datasources/reference/vendor (sha256-checked), as datasources/reference/build.sh does.
 set -euo pipefail
-cd "$(dirname "$0")/../reference"
+cd "$(dirname "$0")/../../datasources/reference"
 SQ=sqlite-amalgamation-3540100
 SQ_SHA=0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9
 mkdir -p vendor

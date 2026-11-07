@@ -6,7 +6,7 @@ set -u
 export LC_ALL=C
 S=twelve-dollar-challenge
 mkdir -p /w && cd /src && tar cf - --exclude=.lake --exclude=.git --exclude=target . | tar xf - -C /w && cd /w
-bash scripts/fetch-sqlite.sh
+bash deploy/scripts/fetch-sqlite.sh
 echo "== build Lean";  lake build feed-server 2>&1 | grep -E "^error|Build" | head -3
 echo "== build Rust";  (cd reference && bash build.sh 2>&1 | tail -2)
 echo "== seed"

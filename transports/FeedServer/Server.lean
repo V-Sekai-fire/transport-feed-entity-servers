@@ -1,8 +1,8 @@
 import FeedServer.Conn
 import FeedServer.Sqlite
-/-! Event loop policy. The C ring glue (csrc/ring_glue.c) moves bytes; everything else is here:
+/-! Event loop policy. The C ring glue (transports/csrc/ring_glue.c) moves bytes; everything else is here:
 connection slots with generations, drain-then-COMMIT-then-send batches, send resumption,
-held writes. Port of the `Server` part of reference/src/main.rs, on one ring with
+held writes. Port of the `Server` part of datasources/reference/src/main.rs, on one ring with
 single-shot accept/recv/send (no provided-buffer rings, no spill rings: simpler, slower). -/
 namespace FeedServer.Server
 

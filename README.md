@@ -1,11 +1,11 @@
-# iouring-feed-server-lean
+# transport-iouring-feed-server
 
 Lean 4 port of the Rust `rust-iouring-kensac` submission (MIT, @kensac) to the arjaythedev
-twelve-dollar-server-challenge. The original source is kept in `reference/`.
+twelve-dollar-server-challenge. The original source is kept in `datasources/reference/`.
 
 SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-tree shim
-(`csrc/shim.c`, one portability guard for `SYS_gettid`) are bound over a thin Lean-ABI glue
-(`csrc/lean_glue.c`). The submission has no FoundationDB code. Storage sits behind
+(`datasources/csrc/shim.c`, one portability guard for `SYS_gettid`) are bound over a thin Lean-ABI glue
+(`datasources/csrc/lean_glue.c`). The submission has no FoundationDB code. Storage sits behind
 `App.Store`, so an FDB backend could plug in there.
 
 ## Layers
@@ -16,12 +16,12 @@ SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-t
 - `Db`: feed, post, likes and inserts over an abstract `Cursors` record. Tested on an in-memory fake and on a real SQLite file.
 - `App`: routing and handlers. Proved: Content-Length always matches the body. A write sets `wrote`, and `endBatch` commits.
 - `Conn`: per-connection serve and batch policy. Proved: a rolled-back batch closes the connection and drops its answers.
-- `Server` + `csrc/ring_glue.c`: io_uring event loop (Linux only).
+- `Server` + `transports/csrc/ring_glue.c`: io_uring event loop (Linux only).
 
 ## Verification
 - `lake exe feed-tests`: 62 checks (Mac and Linux).
-- `scripts/smoke.sh`: curl smoke test.
-- `scripts/accept.sh`: the challenge's own `test/test.sh` (42/42) against the Lean server, in a privileged Ubuntu 24.04 container (`Containerfile`).
+- `deploy/scripts/smoke.sh`: curl smoke test.
+- `deploy/scripts/accept.sh`: the challenge's own `test/test.sh` (42/42) against the Lean server, in a privileged Ubuntu 24.04 container (`deploy/Containerfile`).
 
 ## Differences from the Rust original (not tuned)
 - One ring with single-shot accept/recv/send: no multishot, provided-buffer rings or spill rings.
@@ -31,8 +31,8 @@ SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-t
 
 ## Build
 ```
-bash scripts/fetch-sqlite.sh      # pinned SQLite amalgamation, sha256-checked
+bash deploy/scripts/fetch-sqlite.sh      # pinned SQLite amalgamation, sha256-checked
 lake build feed-tests && lake exe feed-tests
-podman build -t feed-lean -f Containerfile .
-podman run --rm --privileged -v "$PWD":/src:ro feed-lean bash /src/scripts/accept.sh
+podman build -t feed-lean -f deploy/Containerfile .
+podman run --rm --privileged -v "$PWD":/src:ro feed-lean bash /src/deploy/scripts/accept.sh
 ```

@@ -1,4 +1,4 @@
-/-! HTTP/1.1 request framing, ported from reference/src/http.rs.
+/-! HTTP/1.1 request framing, ported from datasources/reference/src/http.rs.
 Only the request line, Authorization and Content-Length are looked at. -/
 namespace FeedServer.Http
 

@@ -35,15 +35,15 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Fetch the pinned SQLite
-        run: bash scripts/fetch-sqlite.sh
+        run: bash deploy/scripts/fetch-sqlite.sh
       - name: Build
         run: lake build feed-tests sqlite-check
       - name: Unit tests
         run: lake exe feed-tests
       - name: Cluster-free fdb open checks
-        run: bash scripts/fdb-open-check.sh
+        run: bash deploy/scripts/fdb-open-check.sh
       - name: Live fdb check
-        run: bash scripts/fdb-live-check.sh "ci-${GITHUB_RUN_ID}"
+        run: bash deploy/scripts/fdb-live-check.sh "ci-${GITHUB_RUN_ID}"
       - name: Backtrace of the crash
         if: failure()
         run: |

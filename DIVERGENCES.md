@@ -2,7 +2,7 @@
 
 Rule: translate first, modify later. Each line is something that is not yet a translation.
 
-Behaviour: scripts/diff.sh sends 101 raw requests to the Rust binary and to this port on copies of the same seed. 101 of 101 replies are byte-identical (only timestamps and uptime masked).
+Behaviour: deploy/scripts/diff.sh sends 101 raw requests to the Rust binary and to this port on copies of the same seed. 101 of 101 replies are byte-identical (only timestamps and uptime masked).
 
 Structure, not yet translated from src/main.rs:
 - one ring; the sample's multiple rings with spill (MAX_RINGS) are missing
@@ -18,6 +18,6 @@ Structure, not yet translated from src/main.rs:
 
 Libraries replaced: sha2 crate -> src Sha256.lean (RFC vectors pass); memchr -> findFrom.
 
-Edits to copied files: csrc/shim.c has one #ifdef __linux__ guard around setpriority(SYS_gettid); csrc/lean_glue.c carries an fcntl64 stub for Lean's older glibc.
+Edits to copied files: datasources/csrc/shim.c has one #ifdef __linux__ guard around setpriority(SYS_gettid); datasources/csrc/lean_glue.c carries an fcntl64 stub for Lean's older glibc.
 
 Per-request cost (profiles/README.md): allocation (lean_alloc_small_object_core, mi_free), List-based escaping (escByte, List.foldl) and ByteArray copies dominate the Lean side.

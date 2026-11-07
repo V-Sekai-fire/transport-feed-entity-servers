@@ -1,5 +1,5 @@
 import FeedServer.App
-/-! Per-connection policy, ported from reference/src/main.rs (`serve`, `mark`, `end_batch`).
+/-! Per-connection policy, ported from datasources/reference/src/main.rs (`serve`, `mark`, `end_batch`).
 No syscalls here: the io_uring glue only moves bytes. -/
 namespace FeedServer.Conn
 open Http

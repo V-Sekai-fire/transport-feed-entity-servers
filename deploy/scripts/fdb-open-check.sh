@@ -13,7 +13,7 @@ case "$out" in *"open: "*) ;; *) echo "FAIL fdb: path was not refused as an open
 out=$(timeout 60 "$bin" /nonexistent.db 2>&1); rc=$?
 case "$out" in *"unable to open database file"*) ;; *) echo "FAIL default path error changed: $out"; fail=1;; esac
 [ "$rc" -ne 0 ] || { echo "FAIL missing default db exited 0"; fail=1; }
-tmp=$(mktemp -d); sqlite3 "$tmp/t.db" < reference/schema.sql
+tmp=$(mktemp -d); sqlite3 "$tmp/t.db" < datasources/reference/schema.sql
 out=$(timeout 60 "$bin" "$tmp/t.db" 2>&1); rc=$?
 [ "$rc" -eq 0 ] || { echo "FAIL positive control: real db did not open (rc=$rc): $out"; fail=1; }
 rm -rf "$tmp"

@@ -9,7 +9,7 @@ S=twelve-dollar-challenge
 VUS=${VUS:-3000}; RAMP=${RAMP:-10s}; HOLD=${HOLD:-30s}; REC=${REC:-20}
 OUT=/out/profiles; mkdir -p $OUT
 mkdir -p /w && cd /src && tar cf - --exclude=.lake --exclude=.git --exclude=target . | tar xf - -C /w && cd /w
-bash scripts/fetch-sqlite.sh
+bash deploy/scripts/fetch-sqlite.sh
 lake build feed-server 2>&1 | grep -E "^error|Build" | head -3
 (cd reference && CARGO_PROFILE_RELEASE_DEBUG=line-tables-only RUSTFLAGS="-C force-frame-pointers=yes" bash build.sh 2>&1 | tail -1)
 git clone -q --depth 1 https://github.com/arjaythedev/twelve-dollar-server-challenge.git /c
@@ -31,6 +31,6 @@ run() { # name, binary
   echo "== $name"; grep -E "http_req_duration|http_reqs|http_req_failed|checks" $OUT/$name.k6.txt | head -6
   ls -la $OUT/$name.profile.json.gz* 2>&1 | cut -c1-120
 }
-run rust /w/reference/target/release/feed-server
+run rust /w/datasources/reference/target/release/feed-server
 run lean /w/.lake/build/bin/feed-server
 chmod -R a+rwX /out 2>/dev/null; true
