@@ -29,7 +29,7 @@ int main(void) {
   for (int i = 0; i < N; i++) pthread_create(&th[i], 0, client, (void *)(intptr_t)i);
   rc = et_run("127.0.0.1", port, 64, slow, 0, &r);
   for (int i = 0; i < N; i++) pthread_join(th[i], 0);
-  printf("rc=%d ticks=%u in=%u out=%u overruns=%u p50=%lld p95=%lld p99=%lld max=%lld ns\n", rc, r.ticks, r.packets_in, r.datagrams_out, r.overruns, (long long)r.p50_ns, (long long)r.p95_ns, (long long)r.p99_ns, (long long)r.max_ns);
+  printf("rc=%d ticks=%u packets_in=%u datagrams_out=%u overruns=%u p50=%lldns p95=%lldns p99=%lldns max=%lldns\n", rc, r.ticks, r.packets_in, r.datagrams_out, r.overruns, (long long)r.p50_ns, (long long)r.p95_ns, (long long)r.p99_ns, (long long)r.max_ns);
   if (rc != 0 || r.packets_in < N * 20 || r.datagrams_out < 64) { puts("FAIL: no traffic"); return 1; }
   if (r.p99_ns > 4000000LL) { puts("FAIL: p99 over the 4 ms budget"); return 1; }
   puts("PASS"); return 0;
