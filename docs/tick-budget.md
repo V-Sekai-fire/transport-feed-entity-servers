@@ -159,3 +159,22 @@ The same job ran again on the branch after it was rebased onto `dev/entity-serve
 | 640 | 3949 | 6169 | 5768 to 5831 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs |
 
 Both runs bracket the wall the same way: inside the budget at 256 clients, over it in every run at 512 clients, and 384 clients sits on the edge (1 of 8 runs over in run 1, 0 of 8 in run 2, with the worst clean p99 at 5161 µs in run 1 and 3687 µs in run 2). Treat the wall as "between 384 and 512 clients", not as a client count. The p50 per client keeps falling slightly through 640 clients (6479, 6272, 6176, 6169 ns), so the session scan in `find()` has not shown up as a quadratic term yet. The planted p50 stayed 5.91 to 6.01 ms above the clean p50 at every level, so the control discriminated past the wall. Still no packet lost and no overrun at 640 clients, where the clean p50 is 3.9 ms, about 25 % of the 15.6 ms slot.
+
+## Send path attribution: the sendto calls against the rest of the tick
+
+`entity_serve ... nosend` runs the full tick and skips the `sendto` calls (a control, not a send path). The `tick-nosend` job ran it at 256, 384, 512 and 640 clients with 8 clean runs and 3 planted 6 ms runs per level. The `tick-wall` job ran `plain` in the same CI run (42412589675). Raw output: `study/send-control-run-1.txt`. Kernel `7.0.0-1017-azure`, 4 vCPUs, server on vCPU 0, loader on vCPU 2.
+
+| Clients | Clean p50 per client, plain (ns) | Clean p50 per client, nosend (ns) | Difference (ns) | Share in the sendto calls | Clean p99 min to max, plain (µs) | Clean p99 min to max, nosend (µs) | Clean over 4 ms, plain | Clean over 4 ms, nosend |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 256 | 6434 | 1478 | 4956 | 77 % | 2300 to 2389 | 437 to 486 | 0 of 8 runs | 0 of 8 runs |
+| 384 | 6342 | 1545 | 4797 | 76 % | 3521 to 3620 | 645 to 711 | 0 of 8 runs | 0 of 8 runs |
+| 512 | 6191 | 1562 | 4629 | 75 % | 4610 to 5300 | 886 to 1731 | 8 of 8 runs | 0 of 8 runs |
+| 640 | 6149 | 1570 | 4579 | 74 % | 5761 to 7212 | 1134 to 1204 | 8 of 8 runs | 0 of 8 runs |
+
+What it shows: about three quarters of the per-client cost is in the `sendto` calls, and the rest (receive plus the copy of a 1200-byte datagram) is about 1500 ns per client. With the sends skipped, no clean run went over 4 ms through 640 clients, so the wall found above is the send path. The planted 6 ms handler was caught in 3 of 3 runs at every nosend level, with the planted p50 5.99 to 6.01 ms above the clean p50, so the nosend levels are valid under the same rule as the sweep above. The 512-client nosend p99 maximum (1731 µs against a minimum of 886 µs) is one run, not a trend.
+
+What it does not show:
+- On loopback the sender runs the receiving socket's work inside `sendto`, so the 74 to 77 % share is an upper bound for a real network card.
+- `plain` and `nosend` ran in different jobs, so on different runner VMs. The ring record above showed a 37 % drift between runs on one runner. The ratio is robust to that and the absolute nanoseconds are not.
+- Under `nosend`, `datagrams_out` counts nothing real.
+- One runner, 8 clean runs per level, no isolation, loopback only.
