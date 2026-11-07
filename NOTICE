@@ -3,3 +3,7 @@ https://github.com/arjaythedev/twelve-dollar-server-challenge (MIT). Its files a
 unmodified into reference/; csrc/shim.c is a copy with one #ifdef __linux__ guard.
 SQLite is public domain; the pinned 3.54.1 amalgamation is fetched by scripts/fetch-sqlite.sh
 (not committed). csrc/lean_glue.c carries an fcntl64 stub for Lean's older bundled glibc.
+
+store/ is a subtree of V-Sekai-fire's store repository (SQLite with a FoundationDB VFS), licensed
+under either Apache-2.0 (store/LICENSE-APACHE) or MIT (store/LICENSE-MIT). libweftfdb builds from it
+but no executable links it yet.
