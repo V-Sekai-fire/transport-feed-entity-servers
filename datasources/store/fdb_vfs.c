@@ -141,7 +141,7 @@ static FDBDatabase *g_db;
 static pthread_t g_network_thread;
 static int g_started;
 
-void weft_fdb_stop(void);
+#include "weft_fdb_vfs.h"
 
 // ── Fault injection ───────────────────────────────────────────────────────────
 //
