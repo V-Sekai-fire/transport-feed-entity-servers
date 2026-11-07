@@ -151,6 +151,14 @@ jobs:
           cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"
       - name: Sweep the client count until the tick hits a wall
         run: BIN="$RUNNER_TEMP" LEVELS="256 384 512 640 768 1024 1536 2048 3072 4096" RUNS=8 PLANTED=3 STOP_AFTER=2 bash deploy/scripts/client-sweep.sh
+      - name: One server against two servers on the same population
+        run: |
+          rc=0
+          for n in 512 640 1024; do
+            BIN="$RUNNER_TEMP" SERVERS=1 LD=3 LEVELS=$n RUNS=8 PLANTED=3 bash deploy/scripts/client-sweep.sh || rc=1
+            BIN="$RUNNER_TEMP" SERVERS=2 LD=3 LEVELS=$n RUNS=8 PLANTED=3 bash deploy/scripts/client-sweep.sh || rc=1
+          done
+          exit $rc
   tick-nosend:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
