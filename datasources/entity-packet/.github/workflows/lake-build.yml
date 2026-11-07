@@ -55,3 +55,7 @@ jobs:
         run: |
           cc -std=c11 -Wall -Wextra -Werror -I build test/golden.c -o build/golden
           ./build/golden build/packet_golden.csv
+      - name: Rotation converters round trip and catch their planted defects
+        run: |
+          lake build rot_check
+          lake exe rot_check

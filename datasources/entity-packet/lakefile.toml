@@ -13,3 +13,7 @@ root = "Main"
 [[lean_exe]]
 name = "packet_emit"
 root = "Emit"
+
+[[lean_exe]]
+name = "rot_check"
+root = "RotCheck"

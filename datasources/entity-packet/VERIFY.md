@@ -29,3 +29,5 @@ golden vectors, and the emitted C and Python encoders each matching all 64 byte 
 The two differentials are the point rather than the roundtrip. A roundtrip closing proves the
 encoder and decoder here are inverses of each other; it says nothing about whether the engine
 that has to read these bytes agrees. Assert the property where it is consumed.
+
+The swing-twist converters have their own check, `lake exe rot_check`, described in `SWING_TWIST.md`.

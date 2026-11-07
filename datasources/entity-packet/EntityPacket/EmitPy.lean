@@ -100,7 +100,7 @@ class Packet:
     hlc: int = 0
     class_owner: int = 0  # (class << 24) | owner
     sub_index: int = 0
-    rot_x: int = 0  # swing-twist
+    rot_x: int = 0  # swing X, swing Z, twist Y, in the wire frame
     rot_y: int = 0
     rot_z: int = 0
     payload: bytes = field(default_factory=lambda: bytes(PAYLOAD_LEN))
