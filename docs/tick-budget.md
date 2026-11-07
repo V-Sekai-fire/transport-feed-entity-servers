@@ -144,3 +144,16 @@ Kept: `plain` (lowest spread, no extra core) and `sqpoll` (lowest mean at 64 cli
 Frontier learning check (RFD66606-2427, the sense of a level from RFD66606-2309). A clean result counts only after its level caught the planted defect in each of the last eight runs. In run 2 all three variants caught it 8 of 8 at both levels (about 6.5 ms at 64 clients, 8.0 to 8.7 ms at 256), so regret 1[s >= 1] - s/n is 0 for every cell and the clean p99 values are valid. No cell is the frontier by that measure. The open question is a different one: the 256-client sqpoll against plain gap is inside sqpoll's spread. The next runs should go to that level, with more than 8 clean runs, before `sqpoll` is called faster there.
 
 Run 2 and run 1 share a runner but disagree on level: plain at 64 clients is a median of 486 us in run 1 and a mean of 667 us in run 2. That 37% drift between runs on one runner is larger than any ring-against-plain gap in either run, which is why the trim rests on dominance and cost, not on a measured slowdown.
+
+### Second run (CI rerun on the rebased branch)
+
+The same job ran again on the branch after it was rebased onto `dev/entity-server` with #24. Run output: `study/wall-sweep-run-2.txt`. The sweep did not stop at 512 clients this time, because 384 clients had no over-budget run, so 512 and 640 were the two consecutive wall levels.
+
+| Clients | Clean p50 median (µs) | p50 per client (ns) | Clean p99 min to max (µs) | Clean over 4 ms | Overruns | Packets lost |
+| --- | --- | --- | --- | --- | --- | --- |
+| 256 | 1659 | 6479 | 2273 to 2359 | 0 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+| 384 | 2409 | 6272 | 3449 to 3687 | 0 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+| 512 | 3163 | 6176 | 4631 to 4870 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+| 640 | 3949 | 6169 | 5768 to 5831 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs |
+
+Both runs bracket the wall the same way: inside the budget at 256 clients, over it in every run at 512 clients, and 384 clients sits on the edge (1 of 8 runs over in run 1, 0 of 8 in run 2, with the worst clean p99 at 5161 µs in run 1 and 3687 µs in run 2). Treat the wall as "between 384 and 512 clients", not as a client count. The p50 per client keeps falling slightly through 640 clients (6479, 6272, 6176, 6169 ns), so the session scan in `find()` has not shown up as a quadratic term yet. The planted p50 stayed 5.91 to 6.01 ms above the clean p50 at every level, so the control discriminated past the wall. Still no packet lost and no overrun at 640 clients, where the clean p50 is 3.9 ms, about 25 % of the 15.6 ms slot.
