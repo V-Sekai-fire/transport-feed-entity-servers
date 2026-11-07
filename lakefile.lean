@@ -50,6 +50,14 @@ extern_lib libtd pkg := do
   let ring ← ring.o.fetch
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, ring]
 
+/-- The store's FoundationDB VFS (subtree at store/), built against this repo's vendored sqlite3.h. -/
+target fdbvfs.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "csrc" / "fdb_vfs.o"
+  let src ← inputTextFile (pkg.dir / "store" / "fdb_vfs.c")
+  buildO oFile src #["-fPIC", "-O2", "-DFDB_API_VERSION=730", "-I", (pkg.dir / "reference" / "vendor").toString, "-I", "/usr/local/include", "-I", "/usr/local/include/foundationdb"] #[] "cc"
+extern_lib libweftfdb pkg := do
+  let o ← fdbvfs.o.fetch
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "weftfdb") #[o]
 def linkLibs : Array String := if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
 
 lean_exe «feed-tests» where
