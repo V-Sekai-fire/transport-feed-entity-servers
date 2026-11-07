@@ -1,6 +1,6 @@
 # CI reliability and latency spread, 2026-11-07
 
-How many nines `transport-iouring-feed-server` CI shows, and how its tick latency varies, set beside Discord's published figures. The scripts and raw data are in `study/`. Run them with `pixi exec -s python=3.12 python study/<script>.py` from inside `study/`. `collect.py`, `logs.py` and `spread.py` need `gh` and `bao-mint-github`.
+How many nines `transport-feed-entity-servers` CI (named `transport-iouring-feed-server` when the runs were collected) shows, and how its tick latency varies, set beside Discord's published figures. The scripts and raw data are in `study/`. Run them with `pixi exec -s python=3.12 python study/<script>.py` from inside `study/`. `collect.py`, `logs.py` and `spread.py` need `gh` and `bao-mint-github`.
 
 ## Conditions
 

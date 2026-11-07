@@ -1,7 +1,7 @@
 import Lake
 open Lake DSL System
 
-package «transport-iouring-feed-server» where
+package «transport-feed-entity-servers» where
   version := v!"0.1.0"
 
 lean_lib Entities where
