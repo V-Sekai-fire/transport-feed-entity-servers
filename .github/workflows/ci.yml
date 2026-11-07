@@ -95,3 +95,51 @@ jobs:
         run: |
           cc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"
           BIN="$RUNNER_TEMP" bash deploy/scripts/ring-compare.sh
+  entity-packet:
+    # The vendored datasources/entity-packet subtree has its own workflow, which GitHub does not run from a
+    # subdirectory. These are its checks, run here, so an edit to the subtree is held to its own gates.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: datasources/entity-packet
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Lean (the subtree pins its own toolchain)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: |
+          cat lean-toolchain
+          lake build EntityPacket packet_emit rot_check predict_check
+      - name: Roundtrip properties
+        run: lake exe packet_demo
+      - name: Emit the golden vectors, the C header, the Python module and the prediction kernel
+        run: lake exe packet_emit
+      - name: The committed emitted files are still the emitted ones
+        run: |
+          for f in packet_golden.csv xr_grid_entity_packet.h xr_grid_entity_packet.py entity_predict.h predict_golden.csv; do
+            diff -u "$f" "build/$f"
+          done
+      - name: The C codec agrees with the Lean bytes
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -I build test/golden.c -o build/golden
+          ./build/golden build/packet_golden.csv
+      - name: Rotation converters round trip and catch their planted defects
+        run: lake exe rot_check
+      - name: Prediction kernel properties
+        run: lake exe predict_check
+      - name: The floor-division kernel is caught
+        run: |
+          if lake exe predict_check plant; then echo "planted floor division was not caught"; exit 1; fi
+      - name: The C prediction kernel agrees with the Lean numbers
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -I build test/predict_golden.c -o build/predict_golden
+          ./build/predict_golden build/predict_golden.csv
+      - name: A C kernel that truncates instead of rounding is caught
+        run: |
+          mkdir -p build/plant
+          python3 -c "s=open('build/entity_predict.h').read(); o='return n >= 0 ? (2 * n + d) / (2 * d) : -((-2 * n + d) / (2 * d));'; assert o in s; open('build/plant/entity_predict.h','w').write(s.replace(o,'return n / d;'))"
+          cc -std=c11 -I build/plant test/predict_golden.c -o build/predict_golden_plant
+          if ./build/predict_golden_plant build/predict_golden.csv; then echo "planted truncation was not caught"; exit 1; fi
