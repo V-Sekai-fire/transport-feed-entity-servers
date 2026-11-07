@@ -50,7 +50,7 @@ jobs:
           gdb -batch -ex run -ex bt -ex "info sharedlibrary" --args .lake/build/bin/sqlite-check "fdb:ci-bt-${GITHUB_RUN_ID}" 2>&1 | tail -40
   tick-budget:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - name: Runner conditions
@@ -83,3 +83,5 @@ jobs:
           cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"
       - name: Two pinned layouts, planted defect on server B only
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/tick-layouts.sh
+      - name: Client sweep, one pinned server, planted defect at every level
+        run: BIN="$RUNNER_TEMP" bash deploy/scripts/client-sweep.sh
