@@ -18,20 +18,24 @@
 #include <time.h>
 
 #define MAXC 65536
-#define RBUF 4096
+/* main.rs BUF_SIZE / BUF_COUNT: one provided-buffer ring (group 0); idle connections own no receive memory. */
+#define BUF_SIZE 2048
+#define BUF_COUNT 1024
 enum { OP_ACCEPT = 1, OP_RECV = 2, OP_SEND = 3 };
+static struct io_uring_buf_ring *br;
+static unsigned char *bufmem;
 
 static struct io_uring ring;
 static int lfd = -1;
 static int fds[MAXC], inflight[MAXC], closing[MAXC], freeq[MAXC], nfree;
-static unsigned char *rbuf[MAXC], *sbuf[MAXC];
+static unsigned char *sbuf[MAXC];
 
 static uint64_t ud(int op, uint32_t tag, uint32_t slot) { return ((uint64_t)op << 56) | ((uint64_t)tag << 32) | slot; }
 
 static void release(uint32_t s) {
   if (closing[s] && inflight[s] == 0) {
     close(fds[s]); fds[s] = -1; closing[s] = 0;
-    free(rbuf[s]); rbuf[s] = 0; free(sbuf[s]); sbuf[s] = 0;
+    free(sbuf[s]); sbuf[s] = 0;
     freeq[nfree++] = (int)s;
   }
 }
@@ -39,6 +43,13 @@ static void release(uint32_t s) {
 LEAN_EXPORT lean_obj_res lean_ring_start(b_lean_obj_arg host, uint32_t port, lean_obj_arg w) {
   struct io_uring_params p; memset(&p, 0, sizeof p);
   if (io_uring_queue_init_params(4096, &ring, &p) < 0) return lean_io_result_mk_ok(lean_mk_string("io_uring_queue_init failed"));
+  int berr = 0;
+  br = io_uring_setup_buf_ring(&ring, BUF_COUNT, 0, 0, &berr);
+  if (!br) return lean_io_result_mk_ok(lean_mk_string("provided buffer ring registration failed"));
+  bufmem = malloc((size_t)BUF_COUNT * BUF_SIZE);
+  for (int i = 0; i < BUF_COUNT; i++)
+    io_uring_buf_ring_add(br, bufmem + (size_t)i * BUF_SIZE, BUF_SIZE, (unsigned short)i, io_uring_buf_ring_mask(BUF_COUNT), i);
+  io_uring_buf_ring_advance(br, BUF_COUNT);
   lfd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   int one = 1;
   setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
@@ -63,8 +74,10 @@ LEAN_EXPORT lean_obj_res lean_ring_arm_recv(uint32_t slot, uint32_t tag, lean_ob
   if (slot >= MAXC || fds[slot] < 0 || closing[slot]) return lean_io_result_mk_ok(lean_box(0));
   struct io_uring_sqe *e = io_uring_get_sqe(&ring);
   if (!e) return lean_io_result_mk_ok(lean_box(0));
-  if (!rbuf[slot]) rbuf[slot] = malloc(RBUF);
-  io_uring_prep_recv(e, fds[slot], rbuf[slot], RBUF, 0);
+  /* main.rs arm_recv: one multishot receive per connection, buffers picked when data arrives. */
+  io_uring_prep_recv_multishot(e, fds[slot], NULL, 0, 0);
+  e->flags |= IOSQE_BUFFER_SELECT;
+  e->buf_group = 0;
   io_uring_sqe_set_data64(e, ud(OP_RECV, tag, slot));
   inflight[slot]++;
   return lean_io_result_mk_ok(lean_box(1));
@@ -101,9 +114,10 @@ LEAN_EXPORT lean_obj_res lean_ring_wait(uint64_t timeout_ns, lean_obj_arg w) {
   io_uring_submit_and_wait_timeout(&ring, &cqe, 1, &ts, NULL);
   size_t len = 0, cap = 4096;
   unsigned char *b = malloc(cap);
-  unsigned head, count = 0;
+  unsigned head, count = 0, nback = 0;
   io_uring_for_each_cqe(&ring, head, cqe) {
     count++;
+    int bid = -1;
     uint64_t u = io_uring_cqe_get_data64(cqe);
     int op = (int)(u >> 56); uint32_t slot = (uint32_t)u; int32_t res = cqe->res;
     uint32_t dlen = 0; const unsigned char *d = 0;
@@ -116,18 +130,26 @@ LEAN_EXPORT lean_obj_res lean_ring_wait(uint64_t timeout_ns, lean_obj_arg w) {
         res = s;
       }
     } else if (op == OP_RECV) {
-      inflight[slot]--;
-      if (res > 0 && !closing[slot]) { d = rbuf[slot]; dlen = (uint32_t)res; }
+      /* a multishot receive stays in flight until a completion arrives without IORING_CQE_F_MORE */
+      if (!(cqe->flags & IORING_CQE_F_MORE)) inflight[slot]--;
+      if (cqe->flags & IORING_CQE_F_BUFFER) {
+        bid = (int)(cqe->flags >> IORING_CQE_BUFFER_SHIFT);
+        if (res > 0 && !closing[slot]) { d = bufmem + (size_t)bid * BUF_SIZE; dlen = (uint32_t)res; }
+      }
     } else if (op == OP_SEND) {
       inflight[slot]--;
     }
-    if (len + 16 + dlen > cap) { cap = (len + 16 + dlen) * 2; b = realloc(b, cap); }
-    memcpy(b + len, &u, 8); memcpy(b + len + 8, &res, 4); memcpy(b + len + 12, &dlen, 4);
-    if (dlen) memcpy(b + len + 16, d, dlen);
-    len += 16 + dlen;
+    uint32_t fl = cqe->flags;
+    if (len + 20 + dlen > cap) { cap = (len + 20 + dlen) * 2; b = realloc(b, cap); }
+    memcpy(b + len, &u, 8); memcpy(b + len + 8, &res, 4); memcpy(b + len + 12, &dlen, 4); memcpy(b + len + 16, &fl, 4);
+    if (dlen) memcpy(b + len + 20, d, dlen);
+    len += 20 + dlen;
+    /* the bytes are copied into the record; the provided buffer goes straight back to the ring */
+    if (bid >= 0) io_uring_buf_ring_add(br, bufmem + (size_t)bid * BUF_SIZE, BUF_SIZE, (unsigned short)bid, io_uring_buf_ring_mask(BUF_COUNT), nback++);
     if (op != OP_ACCEPT) release(slot);
   }
   io_uring_cq_advance(&ring, count);
+  if (nback) io_uring_buf_ring_advance(br, nback);
   lean_object *a = lean_alloc_sarray(1, len, len);
   memcpy(lean_sarray_cptr(a), b, len);
   free(b);

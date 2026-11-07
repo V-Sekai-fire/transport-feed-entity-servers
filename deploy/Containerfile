@@ -2,3 +2,11 @@ FROM docker.io/library/ubuntu:24.04
 RUN apt-get update -qq && apt-get install -y -qq gcc g++ make curl ca-certificates git liburing-dev sqlite3 jq openssl unzip xz-utils zstd >/dev/null
 RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain leanprover/lean4:v4.35.0 >/dev/null 2>&1
 ENV PATH=/root/.elan/bin:$PATH
+RUN curl -sSfL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.94.0 >/dev/null 2>&1
+ENV PATH=/root/.cargo/bin:$PATH
+RUN apt-get update -qq && apt-get install -y -qq nodejs netcat-openbsd >/dev/null
+RUN curl -sSfL https://github.com/mstange/samply/releases/download/samply-v0.13.1/samply-aarch64-unknown-linux-gnu.tar.xz | tar -xJ -C /usr/local/bin --strip-components=1 && samply --version
+RUN curl -sSfL https://github.com/grafana/k6/releases/download/v2.3.0/k6-v2.3.0-linux-arm64.tar.gz | tar -xz -C /usr/local/bin --strip-components=1 && k6 version
+ARG FDB_VERSION=7.3.76
+RUN set -e; A=$(dpkg --print-architecture); case $A in arm64) F=foundationdb-clients_${FDB_VERSION}-1_aarch64.deb; SHA=7537443fa45659ce714ef1fa75b8f68fb8f3b24e98e6b74d759fbbf5ba765886;; amd64) F=foundationdb-clients_${FDB_VERSION}-1_amd64.deb; SHA=46c9aefc2e10328ba1e79918da110d99a52c6be58f0e1482755ae37d36967f77;; esac; \
+    curl -fsSL -o /tmp/$F https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/$F && echo "$SHA  /tmp/$F" | sha256sum -c - && dpkg -i /tmp/$F && rm /tmp/$F && ls /usr/include/foundationdb/fdb_c.h

@@ -41,7 +41,7 @@ target shim.o pkg : FilePath := do
   let lean ← getLeanInstall
   let cc : FilePath := "cc"
   let fl : Array String := #["-fPIC"]
-  buildO oFile src (fl ++ #["-I", (pkg.dir / "datasources" / "reference" / "vendor").toString] ++ sqliteDefs) #[] cc
+  buildO oFile src (fl ++ #["-I", (pkg.dir / "datasources" / "reference" / "vendor").toString, "-I", (pkg.dir / "datasources" / "store").toString] ++ sqliteDefs) #[] cc
 
 target glue.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "lean_glue.o"
@@ -64,7 +64,24 @@ extern_lib libtd pkg := do
   let ring ← ring.o.fetch
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, ring]
 
-def linkLibs : Array String := if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
+/-- The store's FoundationDB VFS (subtree at datasources/store/), built against this repo's vendored sqlite3.h. -/
+target fdbvfs.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "csrc" / "fdb_vfs.o"
+  let hdr : FilePath := "/usr/include/foundationdb/fdb_c.h"
+  if (← hdr.pathExists) then
+    let src ← inputTextFile (pkg.dir / "datasources" / "store" / "fdb_vfs.c")
+    buildO oFile src #["-fPIC", "-O2", "-DFDB_API_VERSION=730", "-I", (pkg.dir / "datasources" / "store").toString, "-I", (pkg.dir / "datasources" / "reference" / "vendor").toString, "-I", "/usr/include/foundationdb"] #[] "cc"
+  else
+    let src ← inputTextFile (pkg.dir / "datasources" / "csrc" / "fdb_stub.c")
+    buildO oFile src #["-fPIC", "-I", (pkg.dir / "datasources" / "store").toString] #[] "cc"
+
+extern_lib libweftfdb pkg := do
+  let o ← fdbvfs.o.fetch
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "weftfdb") #[o]
+/-- The FoundationDB client that libweftfdb (the store VFS) calls. -/
+def fdbLibs : Array String :=
+  if System.Platform.isOSX then #["-L/usr/local/lib", "-Wl,-rpath,/usr/local/lib", "-lfdb_c"] else #["-L/usr/lib", "-lfdb_c"]
+def linkLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
 
 lean_exe «feed-tests» where
   srcDir := "entities/spec"
@@ -75,13 +92,14 @@ lean_exe «sqlite-check» where
   srcDir := "datasources/spec"
   root := `SqliteCheck
   moreLinkArgs := linkLibs
+  moreLinkArgs := linkLibs
 
 
 def uringA : String :=
   if System.Platform.target.startsWith "aarch64" then "/usr/lib/aarch64-linux-gnu/liburing.a"
   else "/usr/lib/x86_64-linux-gnu/liburing.a"
 
-def serveLibs : Array String := if System.Platform.isOSX then #[] else #[uringA, "-lpthread", "-lm"]
+def serveLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] else #[uringA, "-lpthread", "-lm"]
 
 lean_exe «feed-server» where
   srcDir := "transports"
