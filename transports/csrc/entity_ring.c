@@ -20,7 +20,7 @@ static struct io_uring ring;
 static int up;
 static struct msghdr mh[ET_MAX_USERS];
 static struct iovec iv[ET_MAX_USERS];
-static char info[160];
+static char info[320];
 
 static int start(unsigned flags) {
   struct io_uring_params p;
@@ -40,7 +40,7 @@ static int sq_tid(void) {
   int tid = -1;
   if (!d) return -1;
   while ((e = readdir(d)) != 0) {
-    char path[64], comm[64];
+    char path[320], comm[64];
     FILE *f;
     if (e->d_name[0] == '.') continue;
     snprintf(path, sizeof path, "/proc/self/task/%s/comm", e->d_name);
@@ -53,7 +53,7 @@ static int sq_tid(void) {
   return tid;
 }
 static void cpus_of_tid(int tid, char *out, size_t n) {
-  char path[64], line[256];
+  char path[320], line[256];
   FILE *f;
   snprintf(out, n, "n/a");
   snprintf(path, sizeof path, "/proc/self/task/%d/status", tid);
@@ -73,7 +73,7 @@ static void cpus_of_tid(int tid, char *out, size_t n) {
  * runs, because the thread is not ours to taskset at launch. A failed pin is reported, not hidden. */
 static int open_sqpoll(int fd) {
   int tid, pr;
-  char cpus[64];
+  char cpus[256];
   cpu_set_t m;
   (void)fd;
   if (start(IORING_SETUP_SQPOLL) < 0) return -1;
