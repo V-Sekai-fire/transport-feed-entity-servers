@@ -84,6 +84,11 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
   { static int64_t s[1 << 16]; memcpy(s, lat, (size_t)ticks * sizeof(int64_t));
     qsort(s, ticks, sizeof(int64_t), cmp);
     out->p50_ns = s[ticks / 2]; out->p95_ns = s[(ticks * 95u) / 100]; out->p99_ns = s[(ticks * 99u) / 100]; out->max_ns = s[ticks - 1]; }
+  out->rcvbuf_drops = -1;
+#ifdef SO_MEMINFO
+  { uint32_t mi[9]; socklen_t ml = sizeof mi; /* SK_MEMINFO_DROPS is index 8 */
+    if (getsockopt(fd, SOL_SOCKET, SO_MEMINFO, mi, &ml) == 0 && ml >= sizeof mi) out->rcvbuf_drops = (int64_t)mi[8]; }
+#endif
   if (io && io->close) io->close();
   close(fd);
   return 0;

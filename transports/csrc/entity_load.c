@@ -6,10 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
 #define MAX_SOCKETS ET_MAX_USERS
+
+static int fd[MAX_SOCKETS];
+static struct sockaddr_in to[MAX_SOCKETS];
 
 static int64_t now_ns(void) {
   struct timespec t;
@@ -17,16 +21,22 @@ static int64_t now_ns(void) {
   return (int64_t)t.tv_sec * 1000000000LL + t.tv_nsec;
 }
 
+/* Sends SENDS passes, one datagram per client per pass, one pass per tick. A pass that takes longer than a tick,
+ * or starts more than a tick late, is counted: such a run measured the loader and not the server. */
 int main(int argc, char **argv) {
   if (argc < 4) { fprintf(stderr, "usage: entity_load SENDS CLIENTS_PER_PORT PORT...\n"); return 2; }
   int sends = atoi(argv[1]), per = atoi(argv[2]), np = argc - 3, total = np * per;
   if (sends <= 0 || per <= 0 || total > MAX_SOCKETS) return 2;
-  int fd[MAX_SOCKETS];
-  struct sockaddr_in to[MAX_SOCKETS];
+  struct rlimit rl;
+  if (getrlimit(RLIMIT_NOFILE, &rl) == 0 && rl.rlim_cur < (rlim_t)total + 32) {
+    rl.rlim_cur = rl.rlim_max < (rlim_t)total + 32 ? rl.rlim_max : (rlim_t)total + 32;
+    setrlimit(RLIMIT_NOFILE, &rl);
+  }
   for (int p = 0; p < np; p++)
     for (int c = 0; c < per; c++) {
       int k = p * per + c;
       fd[k] = socket(AF_INET, SOCK_DGRAM, 0);
+      if (fd[k] < 0) { fprintf(stderr, "socket %d of %d failed: out of descriptors (limit %lld)\n", k, total, (long long)rl.rlim_cur); return 2; }
       memset(&to[k], 0, sizeof to[k]);
       to[k].sin_family = AF_INET;
       to[k].sin_port = htons((uint16_t)atoi(argv[3 + p]));
@@ -34,21 +44,26 @@ int main(int argc, char **argv) {
     }
   xr_grid_entity_packet_t e;
   uint8_t pk[XR_PACKET_SIZE];
-  int64_t next = now_ns();
+  int64_t next = now_ns(), max_pass = 0;
+  int slow = 0, failed = 0;
   memset(&e, 0, sizeof e);
   for (int i = 0; i < sends; i++) {
     int64_t d = next - now_ns();
     if (d > 0) { struct timespec r = {(time_t)(d / 1000000000LL), (long)(d % 1000000000LL)}; nanosleep(&r, 0); }
+    int64_t t0 = now_ns();
     for (int k = 0; k < total; k++) {
       e.gid = (uint32_t)k + 1;
       e.pos_um_x = i;
       xr_grid_entity_packet_encode(&e, pk);
-      sendto(fd[k], pk, sizeof pk, 0, (struct sockaddr *)&to[k], sizeof to[k]);
+      if (sendto(fd[k], pk, sizeof pk, 0, (struct sockaddr *)&to[k], sizeof to[k]) < 0) failed++;
     }
+    int64_t t1 = now_ns();
+    if (t1 - t0 > max_pass) max_pass = t1 - t0;
+    if (t1 - t0 > ET_TICK_NS || t0 - next > ET_TICK_NS) slow++;
     next += ET_TICK_NS;
   }
   char cpus[ET_CPUS_LEN];
   et_cpus_allowed(cpus, sizeof cpus);
-  printf("load cpus=%s sockets=%d sends=%d\n", cpus, total, sends);
+  printf("load cpus=%s sockets=%d sends=%d max_pass_ns=%lldns slow_passes=%d sends_failed=%d\n", cpus, total, sends, (long long)max_pass, slow, failed);
   return 0;
 }
