@@ -107,3 +107,27 @@ What it shows: at both levels the clean p99 ranges of the three variants overlap
 
 What it does not show: a gain from a ring receive path, behaviour with more than 256 clients, or anything off loopback. One runner, 8 runs per variant and level, no isolation. In some plain and SQPOLL runs `datagrams_out` read above 44288 at 256 clients (44800 and 47104 in one run each) because the count follows when the loader's first packets reach the server, not the variant.
 
+## Client sweep past 256: the latency wall
+
+`ET_MAX_USERS` is now 4096 (about 11 MB of static data, still no heap in the tick). The `tick-wall` job runs `client-sweep.sh` at 256, 384, 512, 640, 768, 1024, 1536, 2048, 3072 and 4096 clients: 8 clean runs and 3 planted 6 ms runs per level, and it stops after 2 consecutive wall levels. A wall is reported, not failed. A level counts as a wall when a clean run goes over the 4 ms budget, a tick overruns its 15.6 ms slot, or `packets_in` falls below 160 per client. A level where the loader falls behind is loader-bound, and the sweep stops there because the server was not the limit.
+
+The planted control changed. Once clean runs pass 4 ms, every planted run is over budget too, so "caught" stops meaning anything. The control is now the planted p50 sitting at least 5 ms above the clean p50 of the same level. It held at every level: 5.91, 5.95 and 5.99 ms.
+
+Run output: `study/wall-sweep-run-1.txt`. Kernel `7.0.0-1017-azure`, 4 vCPUs, UDP receive buffer 1,048,576 bytes by default, 65,536 open descriptors.
+
+| Clients | Bytes in per tick | Bytes out per tick | Clean p50 median (µs) | p50 per client (ns) | Clean p99 min to max (µs) | Clean over 4 ms | Overruns | Packets lost | Loader worst pass (µs) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 256 | 25,600 | 307,200 | 1673 | 6536 | 2280 to 3859 | 0 of 8 runs | 0 of 8 runs | 0 of 8 runs | 3129 |
+| 384 | 38,400 | 460,800 | 2422 | 6307 | 3448 to 5161 | 1 of 8 runs | 0 of 8 runs | 0 of 8 runs | 4537 |
+| 512 | 51,200 | 614,400 | 3191 | 6231 | 4593 to 4920 | 8 of 8 runs | 0 of 8 runs | 0 of 8 runs | 4916 |
+
+**The wall is between 384 and 512 clients.** At 384 clients 7 of 8 clean p99 values sit between 3.4 and 3.7 ms and one reached 5.16 ms. At 512 clients every run is over, from 4.59 to 4.92 ms. The sweep stopped there on its own rule. The wall is in the tick's own work, not in the apparatus:
+
+- No packet was lost at any level (`packets_in` equalled 160 per client), so the receive buffer did not bind before the tick did.
+- No tick overran its 15.6 ms slot. Clean p50 at 512 clients is 3.2 ms, about 20 % of the slot, so the budget of 4 ms on p99 binds long before the slot does.
+- The loader never fell behind (`slow_passes` was 0). Its worst send pass was 4.9 ms against a 15.6 ms tick.
+
+**The cost per client did not rise.** The clean p50 per client went 6536, 6307, 6231 ns from 256 to 512 clients, which is flat to slightly falling. So up to 512 clients the tick is paying a per-client cost (receive, copy, 1200-byte `sendto`) and not the quadratic cost of the linear `find()` scan. The wall is p99 growing with p50 at about 1.4 to 1.5 times, not a new term appearing. The earlier fit of 10 µs plus 5 µs per client predicted a crossing near 600 to 700 clients. This run costs about 6.3 µs per client, so it crossed earlier. The first sweep's 256-client p50 was 1297 µs and this one's is 1673 µs, so that is runner variance: compare levels within one job, not across jobs.
+
+What it does not show: where the slot overruns (the sweep stopped at 512 clients), a gain from any send variant at the wall, or anything off loopback. One runner, 8 runs per level, no isolation, tick cost only and not end-to-end latency. `rcvbuf_drops` read -1 in all 33 runs, meaning `SO_MEMINFO` was not available, so kernel drops on the server socket were not read. Loss is judged from `packets_in` alone.
+
