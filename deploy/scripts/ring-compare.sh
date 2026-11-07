@@ -31,6 +31,12 @@ once() {
 p99_of() { head -1 "$T/s.out" | sed -n 's/.* p99=\([0-9]*\)ns.*/\1/p'; }
 sent_of() { head -1 "$T/s.out" | sed -n 's/.* datagrams_out=\([0-9]*\) .*/\1/p'; }
 
+# The SQPOLL variant is only what it claims when its kernel thread read back on vCPU 3.
+sqcheck() {
+  [ "$1" = sqpoll ] || return 0
+  grep -q '^backend=sqpoll sq_thread_cpus=3 pin_rc=0' "$T/s.out" || bad "$2: the SQPOLL thread did not read back on vCPU 3: $(sed -n 's/^backend=sqpoll //p' "$T/s.out")"
+}
+
 for n in $LEVELS; do
   echo "== $n clients"
   for be in $VARIANTS; do
@@ -39,6 +45,7 @@ for n in $LEVELS; do
       once "$n" 6000000 "$be"
       if [ "$SRC" = 1 ] && grep -q 'FAIL: p99 over the 4 ms budget' "$T/s.out"; then caught=$((caught + 1)); fi
       echo "planted $be $i: p99=$(p99_of)ns datagrams_out=$(sent_of) $(sed -n 's/^backend=[a-z]* //p' "$T/s.out")"
+      sqcheck "$be" "level $n planted run $i"
     done
     eval "caught_$be=$caught"
     [ "$caught" = "$RUNS" ] || bad "level $n $be: the planted defect was caught in $caught of $RUNS runs, so this variant has no valid p99"
@@ -51,6 +58,7 @@ for n in $LEVELS; do
       grep -q 'FAIL: p99 over the 4 ms budget' "$T/s.out" && eval "over_$be=\$((over_$be + 1))"
       eval "v_$be=\"\$v_$be $(p99_of)\""
       echo "clean $be $i: p99=$(p99_of)ns datagrams_out=$(sent_of) $(sed -n 's/^backend=[a-z]* //p' "$T/s.out")"
+      sqcheck "$be" "level $n clean run $i"
     done
   done
   for be in $VARIANTS; do
