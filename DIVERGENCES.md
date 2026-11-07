@@ -21,3 +21,5 @@ Libraries replaced: sha2 crate -> src Sha256.lean (RFC vectors pass); memchr -> 
 Edits to copied files: datasources/csrc/shim.c has one #ifdef __linux__ guard around setpriority(SYS_gettid); datasources/csrc/lean_glue.c carries an fcntl64 stub for Lean's older glibc.
 
 Per-request cost (profiles/README.md): allocation (lean_alloc_small_object_core, mi_free), List-based escaping (escByte, List.foldl) and ByteArray copies dominate the Lean side.
+
+Entity server: the io_uring and SQPOLL send paths were removed. CI showed no difference from plain syscalls at 64 and 256 clients (docs/tick-budget.md). The feed server's io_uring loop is still here.

@@ -9,8 +9,7 @@ SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-t
 (`datasources/store`); CI checks open, write and reopen against a live cluster, and the parity figures
 below were measured on SQLite only.
 
-`entity-server` is a sibling of `feed-server`: a 64 Hz UDP tick (skateboard slice, plain syscalls, not yet
-io_uring), with the 100-byte packet layout from `datasources/entity-packet`. See RFD66606-2442 and RFD66606-2443.
+`entity-server` is a sibling of `feed-server`: a 64 Hz UDP tick (skateboard slice, plain syscalls only; the io_uring send path was removed), with the 100-byte packet layout from `datasources/entity-packet`. See RFD66606-2442 and RFD66606-2443.
 
 ## Layers
 - `Http`: request parser. Proved: a parsed request never claims more bytes than the buffer holds.

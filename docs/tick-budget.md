@@ -84,7 +84,9 @@ First run, kernel `7.0.0-1017-azure`, uid 1001:
 
 So the runner does not block io_uring, and the comparison against plain syscalls can run on it. That a ring can be created does not show that SQPOLL helps: with one vCPU per server it would poll on the tick's own core or take the spare, so it stays a separate labelled variant. One runner, one kernel, one run: a different runner image can answer differently, and every run of the job reprints the probe.
 
-## Send path: plain, io_uring, io_uring with SQPOLL
+## Send path: plain, io_uring, io_uring with SQPOLL (removed)
+
+> **Removed:** the io_uring and SQPOLL send paths, `ring_probe.c` and `ring-compare.sh` were unshipped from the entity server. The numbers below are the record that justified it: plain, ring and SQPOLL clean p99 ranges overlapped at 64 and 256 clients. The code is in git history before this commit; `study/ring-compare-run-1.txt` keeps the run output. The feed server's io_uring event loop is untouched.
 
 `deploy/scripts/ring-compare.sh` ran `entity_serve_ring` three ways in the recorded run, and now runs two (`ring` was trimmed, see the last section), at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
 
