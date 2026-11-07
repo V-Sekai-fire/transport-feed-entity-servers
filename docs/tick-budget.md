@@ -17,6 +17,23 @@ The planted runs come first because of RFD66606-2427: a clean result counts only
 - A hosted runner is a shared virtual machine. One run is one sample, so read the 8 runs as a spread, with the runner conditions printed beside them.
 - The first runs read the kernel as `7.0.0-1017-azure` and the thread siblings as `0-1` and `2-3`. The 4 vCPUs are 2 physical cores with SMT.
 
+## Pinned layouts
+
+`deploy/scripts/tick-layouts.sh` runs two `entity_serve` processes (ports 47321 and 47322, 192 ticks each) and one `entity_load` process that sends 160 packets from 4 sockets per port at 64 Hz. Each process is pinned to one vCPU with `taskset`, and the fourth vCPU is left alone. The script first checks that the thread siblings are `0-1` and `2-3`, because the layouts assume it.
+
+| Layout | Server A | Server B | Loader | What it shows |
+| --- | --- | --- | --- | --- |
+| A, siblings share | 0 | 1 | 2 | the two servers share one physical core |
+| B, siblings split | 0 | 2 | 1 | each server has its own core, the loader shares with A |
+
+Each process prints its own `Cpus_allowed_list` from `/proc/self/status`, and the script fails if it differs from the vCPU it was pinned to. A control pins a server to vCPU 0 and requires that it does not read back as 1.
+
+Per layout, the planted 6 ms handler goes on server B only, 8 times. Server B must fail the 4 ms budget and server A must pass, so a failure is attributed to the right process. Then 8 clean runs must pass on both servers. The p50, p95, p99 and max of every server in every run are printed, and the difference between the layouts is the finding. It is not a pass or fail by itself.
+
+Without `taskset` the script stops, unless `ALLOW_UNPINNED=1` is set. That is for a desk without Linux, and the output then reads `cpus=n/a`.
+
 ## What it does not do
 
-The target layout is two server processes with one vCPU each, one vCPU for the load generator and one spare for the OS and the runner agent. The job does not pin or isolate anything yet. The check is a single process with four client threads, so the layout needs a change to the harness first. Pinning must account for the sibling pairs above, and `taskset` keeps only our own processes on their vCPUs, not the kernel, interrupts or the runner agent.
+`taskset` keeps only our own processes on their vCPUs. It does not keep the kernel, interrupts or the runner agent off the unpinned vCPU, so no isolation is claimed. The numbers are loopback only and not a droplet measurement. Eight runs per layout on one runner is a spread, not a distribution across runners.
+
+The original single-process check (`entity_check.c`) is unchanged and still runs unpinned in the first steps of the job.
