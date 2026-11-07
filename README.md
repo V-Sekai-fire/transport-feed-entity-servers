@@ -9,8 +9,7 @@ SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-t
 (`datasources/store`); CI checks open, write and reopen against a live cluster, and the parity figures
 below were measured on SQLite only.
 
-`entity-server` is a sibling of `feed-server`: a 64 Hz UDP tick (skateboard slice, plain syscalls, not yet
-io_uring), with the 100-byte packet layout from `datasources/entity-packet`. See RFD66606-2442 and RFD66606-2443.
+`entity-server` is a sibling of `feed-server`: a 64 Hz UDP tick (skateboard slice, plain syscalls only; the io_uring send path was removed), with the 100-byte packet layout from `datasources/entity-packet`. See RFD66606-2442 and RFD66606-2443.
 
 ## Layers
 - `Http`: request parser. Proved: a parsed request never claims more bytes than the buffer holds.
@@ -20,7 +19,7 @@ io_uring), with the 100-byte packet layout from `datasources/entity-packet`. See
 - `Db`: feed, post, likes and inserts over an abstract `Cursors` record. Tested on an in-memory fake and on a real SQLite file.
 - `App`: routing and handlers. Proved: Content-Length always matches the body. A write sets `wrote`, and `endBatch` commits.
 - `Conn`: per-connection serve and batch policy. Proved: a rolled-back batch closes the connection and drops its answers.
-- `Server` + `transports/csrc/ring_glue.c`: io_uring event loop (Linux only).
+- `Server` + `transports/csrc/poll_glue.c`: poll(2) event loop (POSIX; a Winsock branch is written but not yet compiled).
 
 ## Verification
 - `lake exe feed-tests`: 62 checks (Mac and Linux).

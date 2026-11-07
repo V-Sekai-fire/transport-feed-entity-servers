@@ -61,19 +61,19 @@ target entityglue.o pkg : FilePath := do
   let src ← inputTextFile (pkg.dir / "transports" / "csrc" / "entity_glue.c")
   let inc ← getLeanIncludeDir
   buildO oFile src #["-I", inc.toString, "-O2", "-fPIC"] #[] "cc"
-target ring.o pkg : FilePath := do
-  let oFile := pkg.buildDir / "csrc" / "ring_glue.o"
-  let src ← inputTextFile (pkg.dir / "transports" / "csrc" / "ring_glue.c")
+target poll.o pkg : FilePath := do
+  let oFile := pkg.buildDir / "csrc" / "poll_glue.o"
+  let src ← inputTextFile (pkg.dir / "transports" / "csrc" / "poll_glue.c")
   let inc ← getLeanIncludeDir
   buildO oFile src #["-I", inc.toString, "-O2", "-fPIC"] #[] "cc"
 
 extern_lib libtd pkg := do
   let shim ← shim.o.fetch
   let glue ← glue.o.fetch
-  let ring ← ring.o.fetch
+  let poll ← poll.o.fetch
   let ent ← entity.o.fetch
   let eg ← entityglue.o.fetch
-  buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, ring, ent, eg]
+  buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, poll, ent, eg]
 
 /-- The store's FoundationDB VFS (subtree at datasources/store/), built against this repo's vendored sqlite3.h. -/
 target fdbvfs.o pkg : FilePath := do
@@ -106,11 +106,7 @@ lean_exe «sqlite-check» where
   moreLinkArgs := linkLibs
 
 
-def uringA : String :=
-  if System.Platform.target.startsWith "aarch64" then "/usr/lib/aarch64-linux-gnu/liburing.a"
-  else "/usr/lib/x86_64-linux-gnu/liburing.a"
-
-def serveLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] else #[uringA, "-lpthread", "-lm"]
+def serveLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
 
 lean_exe «feed-server» where
   srcDir := "transports"

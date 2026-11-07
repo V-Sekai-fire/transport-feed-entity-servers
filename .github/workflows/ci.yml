@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install build dependencies
-        run: sudo apt-get update && sudo -S -p '' apt-get install -y --no-install-recommends liburing-dev sqlite3 curl unzip gdb
+        run: sudo apt-get update && sudo -S -p '' apt-get install -y --no-install-recommends sqlite3 curl unzip gdb
       - name: Install FoundationDB
         run: |
           for p in clients server; do
@@ -60,12 +60,6 @@ jobs:
           lscpu -e
           grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
           if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
-      - name: Install liburing
-        run: sudo apt-get update && sudo -S -p '' apt-get install -y --no-install-recommends liburing-dev
-      - name: Probe io_uring (a block is reported, not failed)
-        run: |
-          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/ring_probe.c -o "$RUNNER_TEMP/ring_probe"
-          "$RUNNER_TEMP/ring_probe"
       - name: Build the tick object under strict C99 and link the loopback check
         run: |
           gcc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_tick.o"
@@ -91,10 +85,6 @@ jobs:
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/tick-layouts.sh
       - name: Client sweep, one pinned server, planted defect at every level
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/client-sweep.sh
-      - name: Send path, plain against SQPOLL
-        run: |
-          cc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"
-          BIN="$RUNNER_TEMP" bash deploy/scripts/ring-compare.sh
   entity-packet:
     # The vendored datasources/entity-packet subtree has its own workflow, which GitHub does not run from a
     # subdirectory. These are its checks, run here, so an edit to the subtree is held to its own gates.

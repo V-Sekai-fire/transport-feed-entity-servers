@@ -1,22 +1,22 @@
 import FeedServer.Conn
 import FeedServer.Sqlite
-/-! Event loop policy. The C ring glue (transports/csrc/ring_glue.c) moves bytes; everything else is here:
+/-! Event loop policy. The C socket glue (transports/csrc/poll_glue.c) moves bytes; everything else is here:
 connection slots with generations, drain-then-COMMIT-then-send batches, send resumption,
-held writes. Port of the `Server` part of datasources/reference/src/main.rs, on one ring with
-single-shot accept/recv/send (no provided-buffer rings, no spill rings: simpler, slower). -/
+held writes. Port of the `Server` part of datasources/reference/src/main.rs, over poll(2): a single listener,
+one receive armed per connection, one send in flight per connection (no provided-buffer rings, no spill rings: simpler, slower). -/
 namespace FeedServer.Server
 
-@[extern "lean_ring_start"] opaque ringStart (host : @& String) (port : UInt32) : IO String
-@[extern "lean_ring_arm_accept"] opaque armAccept : IO Nat
-@[extern "lean_ring_arm_recv"] opaque armRecv (slot tag : UInt32) : IO Nat
-@[extern "lean_ring_send"] opaque ringSend (slot tag : UInt32) (data : @& ByteArray) (off : USize) : IO Nat
-@[extern "lean_ring_close"] opaque ringClose (slot : UInt32) : IO Unit
-@[extern "lean_ring_wait"] opaque ringWait (timeoutNs : UInt64) : IO ByteArray
+@[extern "lean_net_start"] opaque ringStart (host : @& String) (port : UInt32) : IO String
+@[extern "lean_net_arm_accept"] opaque armAccept : IO Nat
+@[extern "lean_net_arm_recv"] opaque armRecv (slot tag : UInt32) : IO Nat
+@[extern "lean_net_send"] opaque ringSend (slot tag : UInt32) (data : @& ByteArray) (off : USize) : IO Nat
+@[extern "lean_net_close"] opaque ringClose (slot : UInt32) : IO Unit
+@[extern "lean_net_wait"] opaque ringWait (timeoutNs : UInt64) : IO ByteArray
 /-- Wait up to `ms` milliseconds for a completion. The C side splits the nanoseconds into
 `tv_sec` and `tv_nsec`, so any `ms` whose nanoseconds fit in `UInt64` is valid (up to
 18,446,744,073,709 ms). The kernel timespec needs ns, so `ringWait` stays the ns primitive. -/
 def ringWaitMs (ms : UInt64) : IO ByteArray := ringWait (ms * 1000000)
-@[extern "lean_wall_ms"] opaque wallMs : IO UInt64
+@[extern "lean_net_wall_ms"] opaque wallMs : IO UInt64
 
 structure Slot where
   gen     : UInt32 := 0
@@ -158,7 +158,7 @@ def run (path secret host : String) (port : UInt32) : IO UInt32 := do
   let err ← Sqlite.openDb path
   if err != "" then IO.eprintln s!"database: {err}"; return 1
   let e ← ringStart host port
-  if e != "" then IO.eprintln s!"io_uring: {e}"; return 1
+  if e != "" then IO.eprintln s!"listen: {e}"; return 1
   let wrote ← IO.mkRef false
   let t0 ← IO.monoMsNow
   let env : App.Env := {
@@ -166,7 +166,7 @@ def run (path secret host : String) (port : UInt32) : IO UInt32 := do
     nowSecs := do pure (Float.ofNat (← wallMs).toNat / 1000.0),
     uptimeS := do pure (((← IO.monoMsNow) - t0) / 1000) }
   let _ ← armAccept
-  IO.eprintln s!"listening on {host}:{port}; io_uring (Lean event loop)"
+  IO.eprintln s!"listening on {host}:{port}; poll (Lean event loop)"
   loop env { slots := #[] }
   return 0
 
