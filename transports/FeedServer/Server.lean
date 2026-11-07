@@ -12,6 +12,9 @@ namespace FeedServer.Server
 @[extern "lean_ring_send"] opaque ringSend (slot tag : UInt32) (data : @& ByteArray) (off : USize) : IO Nat
 @[extern "lean_ring_close"] opaque ringClose (slot : UInt32) : IO Unit
 @[extern "lean_ring_wait"] opaque ringWait (timeoutNs : UInt64) : IO ByteArray
+/-- Wait up to `ms` milliseconds for a completion. Under 1000 ms only: the C side puts the
+nanoseconds in `tv_nsec` with `tv_sec` 0. The kernel timespec needs ns, so `ringWait` stays the ns primitive. -/
+def ringWaitMs (ms : UInt64) : IO ByteArray := ringWait (ms * 1000000)
 @[extern "lean_wall_ms"] opaque wallMs : IO UInt64
 
 structure Slot where
@@ -133,7 +136,7 @@ def endBatch (env : App.Env) (st : State) : IO State := do
   pure { st with touched := #[] }
 
 partial def loop (env : App.Env) (st : State) : IO Unit := do
-  let b ← ringWait 1000000
+  let b ← ringWaitMs 1  -- 1 ms, a quarter of a 4 ms tick
   let st ← decode env st b 0
   -- held writes: retry once the checkpoint hold has ended
   let st ←

@@ -10,7 +10,7 @@ Structure, not yet translated from src/main.rs:
 - still different: ENOBUFS re-arms the receive at once; the sample queues a single-shot OP_READ (read queue, READS_PER_PASS) and re-arms after the socket drains
 - one listener; the sample uses 8 SO_REUSEPORT listeners and ACCEPT_DEPTH accepts
 - accepted sockets are plain fds; the sample uses direct descriptors (register_files_sparse)
-- wait is a fixed 1 ms; the sample waits for WAIT_MIN completions or WAIT_NS
+- wait is a fixed 1 ms (a quarter of a 4 ms tick); the sample waits for WAIT_MIN completions or WAIT_NS
 - no READS_PER_PASS / ANSWERS_PER_PASS budgets, ready list or read queue
 - no output buffer pool (POOL_MAX, OUT_CAP); responses are built by ByteArray append
 - Content-Length is written once from the body size; the sample reserves a 4-digit slot and fixes it up
