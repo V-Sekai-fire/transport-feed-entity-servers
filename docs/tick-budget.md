@@ -49,3 +49,19 @@ Bytes per tick are derived from the code, not measured: `XR_PACKET_SIZE` bytes i
 The tick path holds entities in memory and does not touch the store, so the sweep can answer whether the tick itself binds. It cannot say whether the store binds.
 
 Same caveats as above: loopback only, one runner, no isolation, not a droplet measurement, and eight runs per level is a spread, not a result.
+
+### First run
+
+Runner kernel `7.0.0-1017-azure`, `nproc` 4, siblings `0-1` and `2-3`. The control read a server pinned to 0 back as 0. Every level delivered all of its packets (`in=` was 160 times the client count in every run), so the bytes in per tick are what arrived and not only what was sent. p99 is the spread over 8 runs, in microseconds.
+
+| Clients | Bytes in per tick | Bytes out per tick | Planted caught | Planted p99 (run 1 and 8) | Clean p99 min to max | Clean over 4 ms |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 100 | 100 | 8 of 8 | 6022, 6022 | 26 to 42 | 0 of 8 |
+| 4 | 400 | 1600 | 8 of 8 | 6049, 6050 | 57 to 66 | 0 of 8 |
+| 16 | 1600 | 19200 | 8 of 8 | 6168, 6140 | 171 to 207 | 0 of 8 |
+| 64 | 6400 | 76800 | 8 of 8 | 6572, 6586 | 656 to 689 | 0 of 8 |
+| 256 | 25600 | 307200 | 8 of 8 | 7985, 8041 | 2232 to 2396 | 0 of 8 |
+
+What it shows: the clean p99 grows with the client count, about 4 times for every 4 times the clients, and at the server's cap of 256 it is 2.2 to 2.4 ms, which is inside the 4 ms budget. No clean run went over the budget at any level. The planted p99 rises with the client count too, since the 6 ms handler adds to the tick's own work. The sweep stops at the server's `ET_MAX_USERS`, so it does not find where the clean p99 crosses 4 ms and says nothing about more than 256 clients.
+
+The tick path does not touch the store, so none of these numbers say whether the store binds. Loopback, one runner, no isolation, not a droplet measurement.
