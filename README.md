@@ -1,4 +1,6 @@
-# transport-iouring-feed-server
+# transport-feed-entity-servers
+
+Formerly `transport-iouring-feed-server`; renamed after the io_uring paths were removed. The io_uring measurements stay in `docs/tick-budget.md` and `study/`.
 
 Lean 4 port of the Rust `rust-iouring-kensac` submission (MIT, @kensac) to the arjaythedev
 twelve-dollar-server-challenge. The original source is kept in `datasources/reference/`.
