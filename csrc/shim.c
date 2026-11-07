@@ -59,6 +59,28 @@ static int fail(char *err, int n, const char *what) {
   return -1;
 }
 
+/* The store's FoundationDB VFS (store/fdb_vfs.c, built as libweftfdb). A path "fdb:<name>" opens
+ * <name> through it. That VFS has no WAL and no shared memory: it needs journal_mode=MEMORY, and
+ * it commits atomically itself, so this mode has no WAL hook and no checkpoint thread. */
+/* From store/fdb_vfs.c, or from csrc/fdb_stub.c (which refuses) where the FDB client is absent. */
+extern int weft_fdb_start(const char *cluster_file);
+extern int weft_vfs_register(int make_default);
+static int fdb_mode;
+static void fdb_close_at_exit(void);
+static const char FDB_SCHEMA[] =
+  "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE,"
+  " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));"
+  "CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id),"
+  " body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 500),"
+  " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));"
+  "CREATE TABLE likes (user_id INTEGER NOT NULL REFERENCES users(id),"
+  " post_id INTEGER NOT NULL REFERENCES posts(id),"
+  " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),"
+  " PRIMARY KEY (user_id, post_id));"
+  "CREATE INDEX posts_created_at_id_idx ON posts (created_at DESC, id DESC);"
+  "CREATE INDEX posts_user_id_idx ON posts (user_id);"
+  "CREATE INDEX likes_post_id_idx ON likes (post_id);";
+
 static int wal_hook(void *arg, sqlite3 *d, const char *name, int frames) {
   (void)arg; (void)d; (void)name;
   wal_frames = frames;
@@ -157,8 +179,38 @@ int td_open(const char *path, char *err, int n) {
    * can open it, and the WAL index lives in heap memory shared by this process's two connections
    * (no -shm file, no file locks per transaction). synchronous=NORMAL in WAL: a commit is durable
    * against process crashes when COMMIT returns (rule 6). */
-  if (sqlite3_open_v2(path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX, "unix-excl"))
+  const char *vfs = "unix-excl";
+  int oflags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX;
+  if (!strncmp(path, "fdb:", 4)) {
+    path += 4;
+    fdb_mode = 1;
+    vfs = "weft_fdb";
+    oflags |= SQLITE_OPEN_CREATE;
+    int e = weft_fdb_start(getenv("WEFT_FDB_CLUSTER_FILE"));
+    if (e) { snprintf(err, n, "fdb start: error %d", e); return -1; }
+    if (weft_vfs_register(0)) { snprintf(err, n, "fdb vfs: register failed"); return -1; }
+    /* weft_fdb_start registered weft_fdb_stop with atexit; atexit runs last-in first-out, so this
+     * runs before it and the connection is closed while the FDB client is still up. */
+    atexit(fdb_close_at_exit);
+  }
+  if (sqlite3_open_v2(path, &db, oflags, vfs))
     return fail(err, n, "open");
+  if (fdb_mode) {
+    /* The VFS requires these two; see store/fdb_vfs.c. No WAL, so no hook and no checkpoint thread. */
+    if (exec("PRAGMA journal_mode = MEMORY") || exec("PRAGMA locking_mode = EXCLUSIVE") ||
+        exec("PRAGMA temp_store = MEMORY") || exec("PRAGMA cache_size = -65536") ||
+        exec("PRAGMA mmap_size = 0"))
+      return fail(err, n, "fdb pragmas");
+    /* An empty database gets the challenge schema, so one open yields a usable store. */
+    sqlite3_stmt *q = 0;
+    int empty = 0;
+    if (sqlite3_prepare_v2(db, "SELECT count(*) FROM sqlite_schema", -1, &q, 0) == SQLITE_OK &&
+        sqlite3_step(q) == SQLITE_ROW)
+      empty = sqlite3_column_int(q, 0) == 0;
+    sqlite3_finalize(q);
+    if (empty && sqlite3_exec(db, FDB_SCHEMA, 0, 0, 0)) return fail(err, n, "fdb schema");
+    goto opened;
+  }
   /* No mmap: a page held in SQLite's own cache keeps its parsed B-tree header and is found
    * without a WAL lookup, while an mmap page is looked up in the WAL index and re-parsed on
    * every fetch. The pages the requests touch fit in the cache. */
@@ -168,10 +220,11 @@ int td_open(const char *path, char *err, int n) {
       exec("PRAGMA wal_autocheckpoint = 0") || exec("SELECT count(*) FROM sqlite_schema"))
     return fail(err, n, "pragmas");
   sqlite3_wal_hook(db, wal_hook, 0);
-  if (ck_start(path)) {
+  if (!fdb_mode && ck_start(path)) {
     snprintf(err, n, "checkpoint connection: %s", ckdb ? sqlite3_errmsg(ckdb) : "cannot open");
     return -1;
   }
+opened:;
   static const char *checks[][2] = {
     {"SELECT name FROM pragma_table_info('posts')", "id,user_id,body,created_at"},
     {"SELECT name FROM pragma_table_info('users')", "id,username,created_at"},
@@ -222,6 +275,16 @@ static int step_reset(sqlite3_stmt *s) {
   int rc = sqlite3_step(s);
   sqlite3_reset(s);
   return rc;
+}
+
+static void close_cursors(void);
+static void fdb_close_at_exit(void) {
+  if (!db) return;
+  if (in_batch) { in_batch = 0; close_cursors(); if (!sqlite3_get_autocommit(db)) step_reset(st_rollback); }
+  sqlite3_stmt **all[] = {&st_begin, &st_commit, &st_rollback, &st_post, &st_like, &st_health, &st_feed};
+  for (size_t i = 0; i < sizeof all / sizeof all[0]; i++) { sqlite3_finalize(*all[i]); *all[i] = 0; }
+  sqlite3_close_v2(db);
+  db = 0;
 }
 
 static void close_cursors(void) {

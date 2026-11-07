@@ -64,7 +64,10 @@ target fdbvfs.o pkg : FilePath := do
 extern_lib libweftfdb pkg := do
   let o ← fdbvfs.o.fetch
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "weftfdb") #[o]
-def linkLibs : Array String := if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
+/-- The FoundationDB client that libweftfdb (the store VFS) calls. -/
+def fdbLibs : Array String :=
+  if System.Platform.isOSX then #["-L/usr/local/lib", "-Wl,-rpath,/usr/local/lib", "-lfdb_c"] else #["-L/usr/lib", "-lfdb_c"]
+def linkLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
 
 lean_exe «feed-tests» where
   root := `Tests.Main
@@ -73,13 +76,14 @@ lean_exe «feed-tests» where
 lean_exe «sqlite-check» where
   root := `Tests.SqliteCheck
   moreLinkArgs := linkLibs
+  moreLinkArgs := linkLibs
 
 
 def uringA : String :=
   if System.Platform.target.startsWith "aarch64" then "/usr/lib/aarch64-linux-gnu/liburing.a"
   else "/usr/lib/x86_64-linux-gnu/liburing.a"
 
-def serveLibs : Array String := if System.Platform.isOSX then #[] else #[uringA, "-lpthread", "-lm"]
+def serveLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] else #[uringA, "-lpthread", "-lm"]
 
 lean_exe «feed-server» where
   root := `Tests.Serve
