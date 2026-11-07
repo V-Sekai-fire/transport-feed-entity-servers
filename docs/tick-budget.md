@@ -72,6 +72,8 @@ Every number the harness prints carries its unit or a noun: latencies are `p50=1
 
 ## io_uring probe
 
+> Record only: `ring_probe.c` and its CI step were removed with the ring. The text below describes the job as it ran; the code is in git history before the unship commit.
+
 `transports/csrc/ring_probe.c` runs first in `tick-budget`. It calls `io_uring_setup` directly (no liburing) and prints the `io_uring_disabled` setting, the `Seccomp:` line, the uid, and the result of three calls: a control with 0 entries, a plain ring of 8 entries, and an SQPOLL ring of 8 entries. A block is reported and does not fail the job. The job fails only if the control does not read back `EINVAL`, because then the probe is not reporting the kernel's answer.
 
 First run, kernel `7.0.0-1017-azure`, uid 1001:
@@ -88,7 +90,7 @@ So the runner does not block io_uring, and the comparison against plain syscalls
 
 > **Removed:** the io_uring and SQPOLL send paths, `ring_probe.c` and `ring-compare.sh` were unshipped from the entity server. The numbers below are the record that justified it: plain, ring and SQPOLL clean p99 ranges overlapped at 64 and 256 clients. The code is in git history before this commit; `study/ring-compare-run-1.txt` keeps the run output. The feed server's io_uring event loop is untouched.
 
-`deploy/scripts/ring-compare.sh` ran `entity_serve_ring` three ways in the recorded run, and now runs two (`ring` was trimmed, see the last section), at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
+`deploy/scripts/ring-compare.sh` ran `entity_serve_ring` three ways in run 1 and two ways in run 2 (`ring` was trimmed, see the last section); the script was then removed with the ring, at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
 
 **Only the send path differs.** Receive stays on plain syscalls in every variant, so the tick clock means the same for every variant. This is not a full ring server, and the numbers below say nothing about a ring receive path.
 
@@ -142,6 +144,8 @@ The plain io_uring variant (`ring`) is removed from `entity_serve` and `ring-com
 - Spread-penalised budget, period / (1 + 4 cs) with cs = std / mean (a proxy: this std is across runs of the p99, not frame time, and the rule was set for 144 Hz). Factor 1+4cs at 64 clients: plain 1.09, ring 1.22, sqpoll 1.15. At 256 clients: plain 1.05, ring 1.08, sqpoll 1.36. So ring has the least headroom at 64, and sqpoll the least at 256.
 
 Kept: `plain` (lowest spread, no extra core) and `sqpoll` (lowest mean at 64 clients, but costs vCPU 3 and has the widest spread at 256, so it is opt-in). The 256-client gap between sqpoll and plain (72 us) is inside sqpoll's spread at 8 runs; it is not shown. The ring-vs-plain gap is not statistically shown either (n = 8); the trim rests on dominance and cost, not on a proven slowdown. The recorded ring rows above stay as history. To re-measure ring, check out the commit before this one.
+
+Later: `sqpoll` was removed too, and `plain` is now the only send path. The reasons are the rule above (it wins no axis that justifies a second code path) and RFD66606-2360, which ships one win64 build where io_uring cannot run. The tables in this file stay as the record of what was measured.
 
 Frontier learning check (RFD66606-2427, the sense of a level from RFD66606-2309). A clean result counts only after its level caught the planted defect in each of the last eight runs. In run 2 all three variants caught it 8 of 8 at both levels (about 6.5 ms at 64 clients, 8.0 to 8.7 ms at 256), so regret 1[s >= 1] - s/n is 0 for every cell and the clean p99 values are valid. No cell is the frontier by that measure. The open question is a different one: the 256-client sqpoll against plain gap is inside sqpoll's spread. The next runs should go to that level, with more than 8 clean runs, before `sqpoll` is called faster there.
 
