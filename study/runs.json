@@ -1,0 +1,1444 @@
+{
+ "transport-iouring-feed-server": [
+  {
+   "id": 42394263505,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-server",
+   "sha": "82e7a21cf79c9b2d7d23aab9a39f1ac6f0de07d9",
+   "attempt": 1,
+   "status": "queued",
+   "concl": null,
+   "created": "2026-11-07T17:02:03Z",
+   "started": "2026-11-07T17:02:03Z",
+   "updated": "2026-11-07T17:02:03Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": null,
+     "started": "2026-11-07T17:02:05Z",
+     "completed": null,
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": null,
+     "started": "2026-11-07T17:02:05Z",
+     "completed": null,
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": null,
+     "started": "2026-11-07T17:02:04Z",
+     "completed": null,
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42393869681,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-packet-pull",
+   "sha": "b7da78a0419a1b7b467ae1b98dfad2bb47721c1a",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:57:23Z",
+   "started": "2026-11-07T16:57:23Z",
+   "updated": "2026-11-07T16:59:26Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:57:26Z",
+     "completed": "2026-11-07T16:58:47Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:57:26Z",
+     "completed": "2026-11-07T16:57:33Z",
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:57:26Z",
+     "completed": "2026-11-07T16:59:25Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42393658711,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-server",
+   "sha": "6f84d8d975520cf4246d928c33cea3aa6d65cea9",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:54:47Z",
+   "started": "2026-11-07T16:54:47Z",
+   "updated": "2026-11-07T16:56:48Z",
+   "jobs": [
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:54:49Z",
+     "completed": "2026-11-07T16:56:48Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:54:49Z",
+     "completed": "2026-11-07T16:55:50Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:54:49Z",
+     "completed": "2026-11-07T16:54:59Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42393368825,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/pin-layouts",
+   "sha": "c88490043238357122b577d71929b33cbbd15983",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:51:14Z",
+   "started": "2026-11-07T16:51:14Z",
+   "updated": "2026-11-07T16:53:14Z",
+   "jobs": [
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:51:16Z",
+     "completed": "2026-11-07T16:53:13Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:51:16Z",
+     "completed": "2026-11-07T16:51:24Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:51:16Z",
+     "completed": "2026-11-07T16:52:25Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42393247203,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/pin-layouts",
+   "sha": "91bc6424478afd47d45190daf1154a92cbee47f1",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T16:49:48Z",
+   "started": "2026-11-07T16:49:48Z",
+   "updated": "2026-11-07T16:50:55Z",
+   "jobs": [
+    {
+     "name": "tick-budget",
+     "concl": "failure",
+     "started": "2026-11-07T16:49:50Z",
+     "completed": "2026-11-07T16:50:14Z",
+     "failed": [
+      "Build the server and the loader"
+     ]
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:49:50Z",
+     "completed": "2026-11-07T16:49:58Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:49:50Z",
+     "completed": "2026-11-07T16:50:55Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42390684023,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-server",
+   "sha": "227d77efb046c441ae712527e99295c090de878d",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:19:08Z",
+   "started": "2026-11-07T16:19:08Z",
+   "updated": "2026-11-07T16:20:37Z",
+   "jobs": [
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:19:11Z",
+     "completed": "2026-11-07T16:19:33Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:19:11Z",
+     "completed": "2026-11-07T16:20:36Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:19:10Z",
+     "completed": "2026-11-07T16:19:22Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42390334138,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/ci-once",
+   "sha": "33e8ee4b45e994ffc707b1cd315a9d847d384c55",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:15:00Z",
+   "started": "2026-11-07T16:15:00Z",
+   "updated": "2026-11-07T16:16:26Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:15:03Z",
+     "completed": "2026-11-07T16:16:26Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:15:03Z",
+     "completed": "2026-11-07T16:15:17Z",
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:15:02Z",
+     "completed": "2026-11-07T16:15:22Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42390104204,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-server",
+   "sha": "1b24744f188c60ee74bd4bedd935353399d6060d",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:12:19Z",
+   "started": "2026-11-07T16:12:19Z",
+   "updated": "2026-11-07T16:13:41Z",
+   "jobs": [
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:12:21Z",
+     "completed": "2026-11-07T16:12:28Z",
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:12:21Z",
+     "completed": "2026-11-07T16:12:41Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:12:21Z",
+     "completed": "2026-11-07T16:13:40Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42390100265,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/entity-server",
+   "sha": "1b24744f188c60ee74bd4bedd935353399d6060d",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:12:16Z",
+   "started": "2026-11-07T16:12:16Z",
+   "updated": "2026-11-07T16:13:40Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:12:18Z",
+     "completed": "2026-11-07T16:13:39Z",
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:12:18Z",
+     "completed": "2026-11-07T16:12:40Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:12:18Z",
+     "completed": "2026-11-07T16:12:25Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42390000650,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/tick-budget",
+   "sha": "ffb1586d11caeef6db9fbff71dc650fd680c68fa",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:11:09Z",
+   "started": "2026-11-07T16:11:09Z",
+   "updated": "2026-11-07T16:12:41Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:11:11Z",
+     "completed": "2026-11-07T16:12:41Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:11:11Z",
+     "completed": "2026-11-07T16:11:19Z",
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:11:11Z",
+     "completed": "2026-11-07T16:11:32Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42389998588,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/tick-budget",
+   "sha": "ffb1586d11caeef6db9fbff71dc650fd680c68fa",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:11:07Z",
+   "started": "2026-11-07T16:11:07Z",
+   "updated": "2026-11-07T16:12:16Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:11:09Z",
+     "completed": "2026-11-07T16:12:16Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:11:10Z",
+     "completed": "2026-11-07T16:11:17Z",
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:11:09Z",
+     "completed": "2026-11-07T16:11:29Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42389840536,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/tick-budget",
+   "sha": "14d5c2b6a0396f7ef81edcfb4dc0681e6ea02628",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:09:17Z",
+   "started": "2026-11-07T16:09:17Z",
+   "updated": "2026-11-07T16:10:27Z",
+   "jobs": [
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:09:19Z",
+     "completed": "2026-11-07T16:09:41Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:09:19Z",
+     "completed": "2026-11-07T16:10:26Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:09:19Z",
+     "completed": "2026-11-07T16:09:31Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42389835531,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/tick-budget",
+   "sha": "14d5c2b6a0396f7ef81edcfb4dc0681e6ea02628",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:09:13Z",
+   "started": "2026-11-07T16:09:13Z",
+   "updated": "2026-11-07T16:10:31Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:09:16Z",
+     "completed": "2026-11-07T16:10:30Z",
+     "failed": []
+    },
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:09:16Z",
+     "completed": "2026-11-07T16:09:39Z",
+     "failed": []
+    },
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:09:16Z",
+     "completed": "2026-11-07T16:09:22Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42389463915,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-server",
+   "sha": "d253897f1e7b987ebdaebffa03373e7b821588bc",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:04:48Z",
+   "started": "2026-11-07T16:04:48Z",
+   "updated": "2026-11-07T16:07:05Z",
+   "jobs": [
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:05:22Z",
+     "completed": "2026-11-07T16:05:36Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:05:43Z",
+     "completed": "2026-11-07T16:07:04Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42389459655,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/entity-server",
+   "sha": "d253897f1e7b987ebdaebffa03373e7b821588bc",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:04:45Z",
+   "started": "2026-11-07T16:04:45Z",
+   "updated": "2026-11-07T16:06:52Z",
+   "jobs": [
+    {
+     "name": "entity-tick",
+     "concl": "success",
+     "started": "2026-11-07T16:06:00Z",
+     "completed": "2026-11-07T16:06:19Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:05:38Z",
+     "completed": "2026-11-07T16:06:51Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42389401568,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/tick-budget",
+   "sha": "8f8ed257f672d652c853df0b3e53de969cad88ee",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:04:02Z",
+   "started": "2026-11-07T16:04:02Z",
+   "updated": "2026-11-07T16:06:34Z",
+   "jobs": [
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:05:38Z",
+     "completed": "2026-11-07T16:05:58Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:05:17Z",
+     "completed": "2026-11-07T16:06:33Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42389397013,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/tick-budget",
+   "sha": "8f8ed257f672d652c853df0b3e53de969cad88ee",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:03:59Z",
+   "started": "2026-11-07T16:03:59Z",
+   "updated": "2026-11-07T16:06:38Z",
+   "jobs": [
+    {
+     "name": "tick-budget",
+     "concl": "success",
+     "started": "2026-11-07T16:04:54Z",
+     "completed": "2026-11-07T16:05:16Z",
+     "failed": []
+    },
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T16:05:10Z",
+     "completed": "2026-11-07T16:06:37Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42388918684,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-server",
+   "sha": "0eaf7c67a8b5dbf9f236d2b82ad550e1752af872",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:58:14Z",
+   "started": "2026-11-07T15:58:14Z",
+   "updated": "2026-11-07T15:59:30Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:58:16Z",
+     "completed": "2026-11-07T15:59:29Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42388914910,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/entity-server",
+   "sha": "0eaf7c67a8b5dbf9f236d2b82ad550e1752af872",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:58:11Z",
+   "started": "2026-11-07T15:58:11Z",
+   "updated": "2026-11-07T15:59:33Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:58:14Z",
+     "completed": "2026-11-07T15:59:32Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42387842243,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/entity-server",
+   "sha": "0de1a4183c9161e4b15f405eca93acdf09802e01",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:44:34Z",
+   "started": "2026-11-07T15:44:34Z",
+   "updated": "2026-11-07T15:45:56Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:44:36Z",
+     "completed": "2026-11-07T15:45:55Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42387837616,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/entity-server",
+   "sha": "0de1a4183c9161e4b15f405eca93acdf09802e01",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:44:30Z",
+   "started": "2026-11-07T15:44:30Z",
+   "updated": "2026-11-07T15:45:47Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:44:33Z",
+     "completed": "2026-11-07T15:45:47Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42386467473,
+   "wf": "ci",
+   "event": "push",
+   "branch": "main",
+   "sha": "cba2fd67d9527de0bf4dece5832912ffd72a4f17",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:27:29Z",
+   "started": "2026-11-07T15:27:29Z",
+   "updated": "2026-11-07T15:28:55Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:27:32Z",
+     "completed": "2026-11-07T15:28:55Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42386000171,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/translate-faithfully",
+   "sha": "fd0b101a8fdd0d83da3fb0cc985ecf39a11cb42e",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:21:36Z",
+   "started": "2026-11-07T15:21:36Z",
+   "updated": "2026-11-07T15:23:04Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:21:38Z",
+     "completed": "2026-11-07T15:23:03Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42385995369,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/translate-faithfully",
+   "sha": "fd0b101a8fdd0d83da3fb0cc985ecf39a11cb42e",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:21:32Z",
+   "started": "2026-11-07T15:21:32Z",
+   "updated": "2026-11-07T15:22:52Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:21:35Z",
+     "completed": "2026-11-07T15:22:51Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42385757256,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/store-header",
+   "sha": "09cfb2e2be487559d2bcd83f8d8529fde053cf2e",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:18:46Z",
+   "started": "2026-11-07T15:18:46Z",
+   "updated": "2026-11-07T15:20:03Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:18:48Z",
+     "completed": "2026-11-07T15:20:03Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42385752805,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/store-header",
+   "sha": "09cfb2e2be487559d2bcd83f8d8529fde053cf2e",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:18:43Z",
+   "started": "2026-11-07T15:18:43Z",
+   "updated": "2026-11-07T15:20:08Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:18:46Z",
+     "completed": "2026-11-07T15:20:08Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42385610165,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/translate-faithfully",
+   "sha": "9da874418b8ce05192f7a8ac43981a02d5cd720d",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:16:59Z",
+   "started": "2026-11-07T15:16:59Z",
+   "updated": "2026-11-07T15:18:21Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:17:01Z",
+     "completed": "2026-11-07T15:18:21Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42385606215,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/translate-faithfully",
+   "sha": "9da874418b8ce05192f7a8ac43981a02d5cd720d",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:16:56Z",
+   "started": "2026-11-07T15:16:56Z",
+   "updated": "2026-11-07T15:18:14Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:16:59Z",
+     "completed": "2026-11-07T15:18:13Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42385563769,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/store-header",
+   "sha": "fb2e482c2e7006fed31ae3019b8c1287979ebc70",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T15:16:23Z",
+   "started": "2026-11-07T15:16:23Z",
+   "updated": "2026-11-07T15:17:39Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T15:16:25Z",
+     "completed": "2026-11-07T15:17:38Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42385446000,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/translate-faithfully",
+   "sha": "d97b54e21cc7a1cff918620c6f4d43c95f1f5aa4",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T15:14:58Z",
+   "started": "2026-11-07T15:14:58Z",
+   "updated": "2026-11-07T15:16:18Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T15:15:13Z",
+     "completed": "2026-11-07T15:16:18Z",
+     "failed": [
+      "Cluster-free fdb open checks"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 42385143575,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/translate-faithfully",
+   "sha": "d97b54e21cc7a1cff918620c6f4d43c95f1f5aa4",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T15:11:10Z",
+   "started": "2026-11-07T15:11:10Z",
+   "updated": "2026-11-07T15:15:55Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T15:14:55Z",
+     "completed": "2026-11-07T15:15:54Z",
+     "failed": [
+      "Cluster-free fdb open checks"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 42384035635,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/translate-faithfully",
+   "sha": "a6f0dc13f8ecc6e730fdb27cde7f8065aa0b4bdd",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T14:57:47Z",
+   "started": "2026-11-07T14:57:47Z",
+   "updated": "2026-11-07T14:59:05Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T14:57:49Z",
+     "completed": "2026-11-07T14:59:04Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42383157786,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/fdb-store-path",
+   "sha": "a9617bcdb654c13f32cd6cf290a02011c7facc7a",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T14:46:23Z",
+   "started": "2026-11-07T14:46:23Z",
+   "updated": "2026-11-07T14:50:51Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T14:49:30Z",
+     "completed": "2026-11-07T14:50:50Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42383153807,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/fdb-store-path",
+   "sha": "a9617bcdb654c13f32cd6cf290a02011c7facc7a",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T14:46:19Z",
+   "started": "2026-11-07T14:46:19Z",
+   "updated": "2026-11-07T14:54:29Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "success",
+     "started": "2026-11-07T14:53:06Z",
+     "completed": "2026-11-07T14:54:28Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42382834044,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/fdb-store-path",
+   "sha": "c0d904ab0986e33779663032dabfa0337f83e9f8",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T14:42:13Z",
+   "started": "2026-11-07T14:42:13Z",
+   "updated": "2026-11-07T14:44:55Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T14:43:29Z",
+     "completed": "2026-11-07T14:44:55Z",
+     "failed": [
+      "Live fdb check"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 42382829517,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/fdb-store-path",
+   "sha": "c0d904ab0986e33779663032dabfa0337f83e9f8",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T14:42:10Z",
+   "started": "2026-11-07T14:42:10Z",
+   "updated": "2026-11-07T14:44:28Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T14:43:17Z",
+     "completed": "2026-11-07T14:44:28Z",
+     "failed": [
+      "Live fdb check"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 42382492948,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/fdb-store-path",
+   "sha": "3f9170b1fa9926d0cf161c2fcf386b96c80da169",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T14:37:47Z",
+   "started": "2026-11-07T14:37:47Z",
+   "updated": "2026-11-07T14:39:54Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T14:38:37Z",
+     "completed": "2026-11-07T14:39:53Z",
+     "failed": [
+      "Live fdb check"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 42382488242,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/fdb-store-path",
+   "sha": "3f9170b1fa9926d0cf161c2fcf386b96c80da169",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T14:37:43Z",
+   "started": "2026-11-07T14:37:43Z",
+   "updated": "2026-11-07T14:39:33Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T14:38:21Z",
+     "completed": "2026-11-07T14:39:32Z",
+     "failed": [
+      "Live fdb check"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 42382212786,
+   "wf": "ci",
+   "event": "pull_request",
+   "branch": "dev/fdb-store-path",
+   "sha": "3d6b166d9c8306d0de01d97316dfb6b6f3547f75",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T14:34:11Z",
+   "started": "2026-11-07T14:34:11Z",
+   "updated": "2026-11-07T14:35:18Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T14:34:14Z",
+     "completed": "2026-11-07T14:35:17Z",
+     "failed": [
+      "Build"
+     ]
+    }
+   ]
+  },
+  {
+   "id": 42382212100,
+   "wf": "ci",
+   "event": "push",
+   "branch": "dev/fdb-store-path",
+   "sha": "3d6b166d9c8306d0de01d97316dfb6b6f3547f75",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "failure",
+   "created": "2026-11-07T14:34:11Z",
+   "started": "2026-11-07T14:34:11Z",
+   "updated": "2026-11-07T14:35:14Z",
+   "jobs": [
+    {
+     "name": "fdb-open",
+     "concl": "failure",
+     "started": "2026-11-07T14:34:13Z",
+     "completed": "2026-11-07T14:35:13Z",
+     "failed": [
+      "Build"
+     ]
+    }
+   ]
+  }
+ ],
+ "contract-entity-packet": [
+  {
+   "id": 42392901434,
+   "wf": "lake build",
+   "event": "push",
+   "branch": "main",
+   "sha": "97128738e603d69a8c7abd8f4075c6aff78e8f14",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:45:37Z",
+   "started": "2026-11-07T16:45:37Z",
+   "updated": "2026-11-07T16:46:13Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-11-07T16:45:39Z",
+     "completed": "2026-11-07T16:46:13Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42392594615,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "feat/swing-twist-codec",
+   "sha": "742073da955743303c600291ee79e3a0024950bf",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:41:56Z",
+   "started": "2026-11-07T16:41:56Z",
+   "updated": "2026-11-07T16:42:32Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-11-07T16:41:58Z",
+     "completed": "2026-11-07T16:42:31Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 42391840273,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "feat/swing-twist-codec",
+   "sha": "5125cf23edff6d66dc579569b9e194ebcf618c74",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-11-07T16:32:54Z",
+   "started": "2026-11-07T16:32:54Z",
+   "updated": "2026-11-07T16:33:33Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-11-07T16:32:56Z",
+     "completed": "2026-11-07T16:33:32Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 38067041759,
+   "wf": "lake build",
+   "event": "push",
+   "branch": "main",
+   "sha": "02da8e51d781f370a18f0b5cc3ca1b4cf5c69610",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-10-10T16:17:14Z",
+   "started": "2026-10-10T16:17:14Z",
+   "updated": "2026-10-10T16:17:48Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-10-10T16:17:16Z",
+     "completed": "2026-10-10T16:17:47Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 38053974560,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "lean-v4.34.1",
+   "sha": "ec5c79212aa2966c4f52c5c93dfb2516152a0bd5",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-10-10T12:59:08Z",
+   "started": "2026-10-10T12:59:08Z",
+   "updated": "2026-10-10T13:07:23Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-10-10T13:06:48Z",
+     "completed": "2026-10-10T13:07:23Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 37365015717,
+   "wf": "lake build",
+   "event": "push",
+   "branch": "main",
+   "sha": "6fafc96677a50931740ec8cea2d90408a0b8a0b5",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-10-05T19:41:22Z",
+   "started": "2026-10-05T19:41:22Z",
+   "updated": "2026-10-05T19:52:02Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-10-05T19:51:27Z",
+     "completed": "2026-10-05T19:52:01Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 32077477169,
+   "wf": "lake build",
+   "event": "push",
+   "branch": "main",
+   "sha": "a7425c7daf9d8b4cdd5a35dbc3a27a7f8b0f6e0b",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-17T22:45:53Z",
+   "started": "2026-08-17T22:45:53Z",
+   "updated": "2026-08-17T22:46:27Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-17T22:45:56Z",
+     "completed": "2026-08-17T22:46:26Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 32069110604,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "emit-the-python-codec",
+   "sha": "275209d4c77a89c2d6da3b11f1c9356c7d1f6f34",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-17T21:03:39Z",
+   "started": "2026-08-17T21:03:39Z",
+   "updated": "2026-08-17T21:04:15Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-17T21:03:42Z",
+     "completed": "2026-08-17T21:04:14Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 31967431564,
+   "wf": "lake build",
+   "event": "push",
+   "branch": "main",
+   "sha": "9fc504328e7befa1961640db5a65fa548c1c1a35",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-16T19:23:28Z",
+   "started": "2026-08-16T19:23:28Z",
+   "updated": "2026-08-16T19:24:05Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-16T19:23:32Z",
+     "completed": "2026-08-16T19:24:04Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 31967414586,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "fix-readme",
+   "sha": "439032ae3153c77df6cd6b87efaf6de8b93da088",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-16T19:23:10Z",
+   "started": "2026-08-16T19:23:10Z",
+   "updated": "2026-08-16T19:23:40Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-16T19:23:13Z",
+     "completed": "2026-08-16T19:23:39Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 31962302850,
+   "wf": "lake build",
+   "event": "push",
+   "branch": "main",
+   "sha": "8d42a1cdfad399689afd38b233134bd961f44b7c",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-16T17:40:24Z",
+   "started": "2026-08-16T17:40:24Z",
+   "updated": "2026-08-16T17:40:57Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-16T17:40:27Z",
+     "completed": "2026-08-16T17:40:56Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 31962223777,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "add-the-mit-licence",
+   "sha": "ef58728e501214a2cd6b610b41502d4ddfdfd55d",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-16T17:38:53Z",
+   "started": "2026-08-16T17:38:53Z",
+   "updated": "2026-08-16T17:39:26Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-16T17:38:56Z",
+     "completed": "2026-08-16T17:39:25Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 31956737043,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "cut-the-readme-to-forty-lines",
+   "sha": "c1631174fd495017f78ade58ad174a4447e79bac",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-16T15:48:14Z",
+   "started": "2026-08-16T15:48:14Z",
+   "updated": "2026-08-16T15:48:46Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-16T15:48:17Z",
+     "completed": "2026-08-16T15:48:45Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 31603443836,
+   "wf": "lake build",
+   "event": "push",
+   "branch": "main",
+   "sha": "e0a5b60dd0b5bc47179500b9fb0fdbf8028e547d",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-12T13:49:30Z",
+   "started": "2026-08-12T13:49:30Z",
+   "updated": "2026-08-12T13:50:06Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-12T13:49:34Z",
+     "completed": "2026-08-12T13:50:05Z",
+     "failed": []
+    }
+   ]
+  },
+  {
+   "id": 31603277946,
+   "wf": "lake build",
+   "event": "pull_request",
+   "branch": "emit-the-c-codec",
+   "sha": "f370a75de2772c4b580b52def777649bb733bb3a",
+   "attempt": 1,
+   "status": "completed",
+   "concl": "success",
+   "created": "2026-08-12T13:47:35Z",
+   "started": "2026-08-12T13:47:35Z",
+   "updated": "2026-08-12T13:48:08Z",
+   "jobs": [
+    {
+     "name": "build",
+     "concl": "success",
+     "started": "2026-08-12T13:47:39Z",
+     "completed": "2026-08-12T13:48:08Z",
+     "failed": []
+    }
+   ]
+  }
+ ]
+}

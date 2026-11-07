@@ -3,10 +3,10 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main, "dev/**"]
+    branches: [main]
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   fdb-open:
     runs-on: ubuntu-24.04
@@ -48,3 +48,98 @@ jobs:
         if: failure()
         run: |
           gdb -batch -ex run -ex bt -ex "info sharedlibrary" --args .lake/build/bin/sqlite-check "fdb:ci-bt-${GITHUB_RUN_ID}" 2>&1 | tail -40
+  tick-budget:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Runner conditions
+        run: |
+          uname -r
+          nproc
+          lscpu -e
+          grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+          if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
+      - name: Install liburing
+        run: sudo apt-get update && sudo -S -p '' apt-get install -y --no-install-recommends liburing-dev
+      - name: Probe io_uring (a block is reported, not failed)
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/ring_probe.c -o "$RUNNER_TEMP/ring_probe"
+          "$RUNNER_TEMP/ring_probe"
+      - name: Build the tick object under strict C99 and link the loopback check
+        run: |
+          gcc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_tick.o"
+          gcc -std=gnu99 -O2 -Wall -Wextra -Werror -pthread transports/csrc/entity_check.c "$RUNNER_TEMP/entity_tick.o" -o "$RUNNER_TEMP/entity_check"
+      - name: The tick object has no allocator or Lean runtime symbols
+        run: |
+          if nm "$RUNNER_TEMP/entity_tick.o" | grep -E ' U (malloc|free|lean_)'; then exit 1; fi
+      - name: Planted 6 ms handler must fail the 4 ms budget
+        run: |
+          for i in 1 2 3 4 5 6 7 8; do
+            if ENTITY_SLOW_NS=6000000 "$RUNNER_TEMP/entity_check" > "$RUNNER_TEMP/slow.out"; then cat "$RUNNER_TEMP/slow.out"; echo "run $i: planted defect not caught"; exit 1; fi
+            grep -q 'FAIL: p99 over the 4 ms budget' "$RUNNER_TEMP/slow.out" || { cat "$RUNNER_TEMP/slow.out"; echo "run $i: failed for another reason"; exit 1; }
+          done
+          cat "$RUNNER_TEMP/slow.out"
+      - name: Clean run stays inside the budget
+        run: |
+          for i in 1 2 3 4 5 6 7 8; do "$RUNNER_TEMP/entity_check" || exit 1; done
+      - name: Build the server and the loader
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_serve.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_serve"
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"
+      - name: Two pinned layouts, planted defect on server B only
+        run: BIN="$RUNNER_TEMP" bash deploy/scripts/tick-layouts.sh
+      - name: Client sweep, one pinned server, planted defect at every level
+        run: BIN="$RUNNER_TEMP" bash deploy/scripts/client-sweep.sh
+      - name: Send path, plain against io_uring against SQPOLL
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"
+          BIN="$RUNNER_TEMP" bash deploy/scripts/ring-compare.sh
+  entity-packet:
+    # The vendored datasources/entity-packet subtree has its own workflow, which GitHub does not run from a
+    # subdirectory. These are its checks, run here, so an edit to the subtree is held to its own gates.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: datasources/entity-packet
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Lean (the subtree pins its own toolchain)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: |
+          cat lean-toolchain
+          lake build EntityPacket packet_emit rot_check predict_check
+      - name: Roundtrip properties
+        run: lake exe packet_demo
+      - name: Emit the golden vectors, the C header, the Python module and the prediction kernel
+        run: lake exe packet_emit
+      - name: The committed emitted files are still the emitted ones
+        run: |
+          for f in packet_golden.csv xr_grid_entity_packet.h xr_grid_entity_packet.py entity_predict.h predict_golden.csv; do
+            diff -u "$f" "build/$f"
+          done
+      - name: The C codec agrees with the Lean bytes
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -I build test/golden.c -o build/golden
+          ./build/golden build/packet_golden.csv
+      - name: Rotation converters round trip and catch their planted defects
+        run: lake exe rot_check
+      - name: Prediction kernel properties
+        run: lake exe predict_check
+      - name: The floor-division kernel is caught
+        run: |
+          if lake exe predict_check plant; then echo "planted floor division was not caught"; exit 1; fi
+      - name: The C prediction kernel agrees with the Lean numbers
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -I build test/predict_golden.c -o build/predict_golden
+          ./build/predict_golden build/predict_golden.csv
+      - name: A C kernel that truncates instead of rounding is caught
+        run: |
+          mkdir -p build/plant
+          python3 -c "s=open('build/entity_predict.h').read(); o='return n >= 0 ? (2 * n + d) / (2 * d) : -((-2 * n + d) / (2 * d));'; assert o in s; open('build/plant/entity_predict.h','w').write(s.replace(o,'return n / d;'))"
+          cc -std=c11 -I build/plant test/predict_golden.c -o build/predict_golden_plant
+          if ./build/predict_golden_plant build/predict_golden.csv; then echo "planted truncation was not caught"; exit 1; fi
