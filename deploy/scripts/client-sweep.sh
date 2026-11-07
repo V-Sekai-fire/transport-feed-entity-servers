@@ -79,7 +79,7 @@ once() {
 line() {
   local j
   for ((j = 0; j < SERVERS; j++)); do echo "   server $j: $(head -1 "$T/s$j.out" | cut -d' ' -f2,5-12)"; done
-  echo "   loader: $(head -1 "$T/l.out" | cut -d' ' -f5-7)"
+  echo "   loader: $(head -1 "$T/l.out" | cut -d' ' -f3,5-7)"
 }
 
 if [ "$PINNED" = 1 ]; then

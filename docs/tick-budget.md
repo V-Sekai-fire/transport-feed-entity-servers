@@ -259,3 +259,34 @@ What it does not show:
 - One runner, 8 clean runs per level, no isolation.
 
 Under the rule in the trim section above (a variant that wins no axis is trimmed), `sendmmsg` was trimmed. This section and `study/sendmmsg-run-1.txt` are the record.
+
+### Which vCPU is slow: placement against send order
+
+#29 left the server on vCPU 2 slower in the tail (p99 gap 0.19 to 0.86 ms, p50 gap under 2 %). Two explanations fit: server 1 shares a core with the loader (vCPU 2 and 3 are SMT siblings), or `entity_load` sends all of port 0 before port 1 in each pass so server 1's datagrams always arrive later. `tick-wall` ran the 2x2 at 640 clients in one job: the servers' vCPUs (`SERVER_CPUS`) against the loader's send order (`ENTITY_LOAD_ORDER`, blocked or interleave), ABBA order, 2 visits of 8 clean and 3 planted runs per cell, so 16 clean runs per cell. Loader on vCPU 3 throughout. Run output: `study/placement-order-run-1.txt`.
+
+Clean runs, medians over 16 runs, in µs:
+
+| Servers on vCPU | Send order | Server 0: p50, p99 | Server 1: p50, p99 | Server 1 minus server 0: p50, p99 |
+| --- | --- | --- | --- | --- |
+| 0 and 2 | blocked | 2155, 2995 | 2169, 3611 | +13, +616 |
+| 0 and 2 | interleave | 2148, 3028 | 2200, 3615 | +52, +587 |
+| 2 and 0 | blocked | 2250, 3631 | 2172, 3032 | -78, -600 |
+| 2 and 0 | interleave | 2192, 3598 | 2114, 2967 | -77, -630 |
+
+Pooled over all four cells (64 runs each): the server on vCPU 0 had a p99 median of 3021 µs and the server on vCPU 2 had 3611 µs, a gap of 590 µs. Pooled by sent-to position instead: server 0 had 3508 µs and server 1 had 3472 µs, a gap of 36 µs. No clean run was over the 4 ms budget in any visit. The planted p50 sat 5.94 to 6.53 ms above the clean p50 in every visit.
+
+Predictions written before the run, against the result:
+
+- **Core: the server on vCPU 2 is slower in all four cells by about 0.5 ms or more. Held.** Its p99 was 587 to 630 µs above the other server's in every cell.
+- **Core: swapping the vCPUs moves the slow label to the other server. Held.** The sign of the gap flipped from +616 and +587 µs to -600 and -630 µs.
+- **Send order: interleaving shrinks the gap to under 0.1 ms. Not seen.** The gap was 616 µs blocked and 587 µs interleaved with servers on 0 and 2, and -600 against -630 µs swapped.
+- **Neither: the gap stays 0.2 ms or more in all four cells. Not the case for the order, but the gap did stay at 0.59 to 0.63 ms in all four.**
+
+What it shows: the extra tail follows the vCPU, not the server index and not the loader's send order. The vCPU 2 penalty is about 0.6 ms of p99 at 640 clients, 590 µs pooled, and it is a tail effect: the p50 gap was 13 to 78 µs with mixed sign.
+
+What it does not show:
+
+- **Whether the interleave setting was applied in this run.** The loader's `order=` field was not in the printed output, so this log cannot prove it. A single-binary check on the Mac shows the loader reads `ENTITY_LOAD_ORDER` and prints `order=interleave`. `client-sweep.sh` now prints `order=` for every run, so the next run will carry the proof. Until then, the "send order has no effect" reading rests on that unverified setting.
+- **Why vCPU 2 is slower.** Sharing a core with the loader on vCPU 3 fits, but vCPU 2 could differ from vCPU 0 for another reason. Moving the loader to vCPU 1, the sibling of vCPU 0, would separate the two: if the penalty moves to vCPU 0, it is the loader's core.
+
+Planning figure: a server on the loader's core pays about 0.6 ms of extra p99 at 640 clients at 64 Hz. Keep the loader off the servers' cores on a real deployment, which this harness cannot show. One runner, loopback, no shared entities.
