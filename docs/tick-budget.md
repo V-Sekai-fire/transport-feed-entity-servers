@@ -131,3 +131,12 @@ Run output: `study/wall-sweep-run-1.txt`. Kernel `7.0.0-1017-azure`, 4 vCPUs, UD
 
 What it does not show: where the slot overruns (the sweep stopped at 512 clients), a gain from any send variant at the wall, or anything off loopback. One runner, 8 runs per level, no isolation, tick cost only and not end-to-end latency. `rcvbuf_drops` read -1 in all 33 runs, meaning `SO_MEMINFO` was not available, so kernel drops on the server socket were not read. Loss is judged from `packets_in` alone.
 
+### Trim: the `ring` variant
+
+The plain io_uring variant (`ring`) is removed from `entity_serve` and `ring-compare.sh`. Reason: it is dominated. It never wins an axis in either record, and it adds a code path.
+
+- CI run 1 (table above): ring median is above plain at 64 and 256 clients, and its maximum is second-worst at 256.
+- Local 8-run record, p99 mean (ns, std): 64 clients plain 666761 (15121), ring 699934 (39170), sqpoll 559967 (20859). 256 clients plain 2238279 (27614), ring 2260388 (45861), sqpoll 2166475 (193243).
+- Spread-penalised budget, period / (1 + 4 cs) with cs = std / mean (a proxy: this std is across runs of the p99, not frame time): ring has the least headroom at 64 clients and less than plain at 256.
+
+Kept: `plain` (lowest spread, no extra core) and `sqpoll` (lowest mean at 64 clients, but costs vCPU 3 and has the widest spread at 256, so it is opt-in). The 256-client gap between sqpoll and plain (72 us) is inside sqpoll's spread at 8 runs; it is not shown. The ring-vs-plain gap is not statistically shown either (n = 8); the trim rests on dominance and cost, not on a proven slowdown. The recorded ring rows above stay as history. To re-measure ring, check out the commit before this one.

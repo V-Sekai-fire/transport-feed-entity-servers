@@ -5,12 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef ET_WITH_RING
-extern const et_io_t et_ring_io, et_sqpoll_io;
+extern const et_io_t et_sqpoll_io;
 const char *et_ring_info(void);
 #endif
 
 int main(int argc, char **argv) {
-  if (argc != 5 && argc != 6) { fprintf(stderr, "usage: entity_serve NAME PORT TICKS SLOW_NS [plain|ring|sqpoll]\n"); return 2; }
+  if (argc != 5 && argc != 6) { fprintf(stderr, "usage: entity_serve NAME PORT TICKS SLOW_NS [plain|sqpoll]\n"); return 2; }
   uint16_t port = (uint16_t)atoi(argv[2]);
   uint32_t ticks = (uint32_t)atol(argv[3]), slow = (uint32_t)atol(argv[4]);
   const char *be = argc == 6 ? argv[5] : "plain";
@@ -20,7 +20,6 @@ int main(int argc, char **argv) {
   et_report_t r;
   if (strcmp(be, "plain") == 0) io = 0;
 #ifdef ET_WITH_RING
-  else if (strcmp(be, "ring") == 0) io = &et_ring_io;
   else if (strcmp(be, "sqpoll") == 0) io = &et_sqpoll_io;
 #endif
   else { fprintf(stderr, "backend %s is not built in\n", be); return 2; }
