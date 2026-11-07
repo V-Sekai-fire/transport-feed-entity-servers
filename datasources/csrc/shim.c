@@ -59,10 +59,10 @@ static int fail(char *err, int n, const char *what) {
   return -1;
 }
 
-/* The store's FoundationDB VFS (store/fdb_vfs.c, built as libweftfdb). A path "fdb:<name>" opens
+/* The store's FoundationDB VFS (datasources/store/fdb_vfs.c, built as libweftfdb). A path "fdb:<name>" opens
  * <name> through it. That VFS has no WAL and no shared memory: it needs journal_mode=MEMORY, and
  * it commits atomically itself, so this mode has no WAL hook and no checkpoint thread. */
-/* From store/fdb_vfs.c, or from csrc/fdb_stub.c (which refuses) where the FDB client is absent. */
+/* From datasources/store/fdb_vfs.c, or from datasources/csrc/fdb_stub.c (which refuses) where the FDB client is absent. */
 extern int weft_fdb_start(const char *cluster_file);
 extern int weft_vfs_register(int make_default);
 static int fdb_mode;
@@ -196,7 +196,7 @@ int td_open(const char *path, char *err, int n) {
   if (sqlite3_open_v2(path, &db, oflags, vfs))
     return fail(err, n, "open");
   if (fdb_mode) {
-    /* The VFS requires these two; see store/fdb_vfs.c. No WAL, so no hook and no checkpoint thread. */
+    /* The VFS requires these two; see datasources/store/fdb_vfs.c. No WAL, so no hook and no checkpoint thread. */
     if (exec("PRAGMA journal_mode = MEMORY") || exec("PRAGMA locking_mode = EXCLUSIVE") ||
         exec("PRAGMA temp_store = MEMORY") || exec("PRAGMA cache_size = -65536") ||
         exec("PRAGMA mmap_size = 0"))

@@ -64,13 +64,13 @@ extern_lib libtd pkg := do
   let ring ← ring.o.fetch
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "td") #[shim, glue, ring]
 
-/-- The store's FoundationDB VFS (subtree at store/), built against this repo's vendored sqlite3.h. -/
+/-- The store's FoundationDB VFS (subtree at datasources/store/), built against this repo's vendored sqlite3.h. -/
 target fdbvfs.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "fdb_vfs.o"
   let hdr : FilePath := "/usr/include/foundationdb/fdb_c.h"
   if (← hdr.pathExists) then
-    let src ← inputTextFile (pkg.dir / "store" / "fdb_vfs.c")
-    buildO oFile src #["-fPIC", "-O2", "-DFDB_API_VERSION=730", "-I", (pkg.dir / "store").toString, "-I", (pkg.dir / "datasources" / "reference" / "vendor").toString, "-I", "/usr/include/foundationdb"] #[] "cc"
+    let src ← inputTextFile (pkg.dir / "datasources" / "store" / "fdb_vfs.c")
+    buildO oFile src #["-fPIC", "-O2", "-DFDB_API_VERSION=730", "-I", (pkg.dir / "datasources" / "store").toString, "-I", (pkg.dir / "datasources" / "reference" / "vendor").toString, "-I", "/usr/include/foundationdb"] #[] "cc"
   else
     let src ← inputTextFile (pkg.dir / "datasources" / "csrc" / "fdb_stub.c")
     buildO oFile src #["-fPIC"] #[] "cc"
