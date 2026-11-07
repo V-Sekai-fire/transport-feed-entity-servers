@@ -55,7 +55,7 @@ def main : IO UInt32 := do
     feed := pure (.ok (b "{\"posts\":[]}"))
     post := fun id => pure (.ok (if id == 7 then some (b "{\"post\":{\"id\":7}}") else none))
     health := pure (.ok ())
-    insertPost := fun _ body => pure (.ok (42, b "2026-01-01T00:00:00.000Z"))
+    insertPost := fun _ _ => pure (.ok (42, b "2026-01-01T00:00:00.000Z"))
     postExists := fun id => pure (.ok (id == 7))
     insertLike := fun u p => do
       let ls ← likes.get
@@ -91,6 +91,20 @@ def main : IO UInt32 := do
   let l2 ← run s!"POST /posts/7/like HTTP/1.1\r\nAuthorization: Bearer {tok}\r\n\r\n"
   results := results.push (← check "like 201 then 200" (has l1 "201 Created" && has l1 "\"already_liked\":false" && has l2 "200 OK" && has l2 "\"already_liked\":true"))
   results := results.push (← check "like missing post" (has (← run s!"POST /posts/9/like HTTP/1.1\r\nAuthorization: Bearer {tok}\r\n\r\n") "404 Not Found"))
+  -- SQLite record decoding
+  results := results.push (← check "varint 1 byte" (Record.varint (ByteArray.mk #[0x7f]) 0 == some (127, 1)))
+  results := results.push (← check "varint 2 bytes (128)" (Record.varint (ByteArray.mk #[0x81, 0x00]) 0 == some (128, 2)))
+  results := results.push (← check "varint 9 bytes" (Record.varint (ByteArray.mk #[0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff]) 0 == some (0xffffffffffffffff, 9)))
+  results := results.push (← check "varint truncated" (Record.varint (ByteArray.mk #[0x81]) 0).isNone)
+  let rec1 := ByteArray.mk #[3, 1, 19, 0xff, 97, 98, 99]
+  results := results.push (← check "columns int8 + text" (match Record.columns rec1 2 with
+    | some [(1, a), (19, t)] => Record.intOf 1 a == some (-1) && Record.text (19, t) == some (b "abc")
+    | _ => false))
+  results := results.push (← check "columns header too long" (Record.columns (ByteArray.mk #[9, 1]) 1).isNone)
+  results := results.push (← check "columns body too short" (Record.columns (ByteArray.mk #[2, 1]) 1).isNone)
+  results := results.push (← check "intOf 3-byte" (Record.intOf 3 (ByteArray.mk #[0x01, 0x00, 0x00]) == some 65536))
+  results := results.push (← check "intOf consts" (Record.intOf 8 ByteArray.empty == some 0 && Record.intOf 9 ByteArray.empty == some 1))
+  results := results.push (← check "text rejects blob" (Record.text (18, ByteArray.empty)).isNone)
   let bad := results.filter (!·) |>.size
   IO.println s!"{results.size - bad}/{results.size} passed"
   pure (if bad == 0 then 0 else 1)
