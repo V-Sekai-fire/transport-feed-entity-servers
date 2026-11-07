@@ -1,6 +1,7 @@
 import EntityPacket.Gen
 import EntityPacket.EmitC
 import EntityPacket.EmitPy
+import EntityPacket.EmitPredict
 open EntityPacket
 
 -- Three outputs, and they are the same claim three times.
@@ -28,3 +29,7 @@ def main : IO Unit := do
 
   IO.FS.writeFile "build/xr_grid_entity_packet.py" pyModule
   IO.println s!"wrote build/xr_grid_entity_packet.py ({SIZE} bytes, payload at {PAYLOAD_OFFSET})"
+  IO.FS.writeFile "build/entity_predict.h" predictHeader
+  IO.println "wrote build/entity_predict.h (makima displacement kernel, 128 bit products)"
+  IO.FS.writeFile "build/predict_golden.csv" predictGolden
+  IO.println "wrote build/predict_golden.csv (512 vectors)"

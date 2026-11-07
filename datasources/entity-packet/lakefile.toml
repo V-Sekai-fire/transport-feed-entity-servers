@@ -17,3 +17,7 @@ root = "Emit"
 [[lean_exe]]
 name = "rot_check"
 root = "RotCheck"
+
+[[lean_exe]]
+name = "predict_check"
+root = "PredictCheck"
