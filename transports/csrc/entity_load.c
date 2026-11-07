@@ -42,6 +42,8 @@ int main(int argc, char **argv) {
       to[k].sin_port = htons((uint16_t)atoi(argv[3 + p]));
       inet_pton(AF_INET, "127.0.0.1", &to[k].sin_addr);
     }
+  const char *ord = getenv("ENTITY_LOAD_ORDER");
+  int interleave = ord && strcmp(ord, "interleave") == 0;
   xr_grid_entity_packet_t e;
   uint8_t pk[XR_PACKET_SIZE];
   int64_t next = now_ns(), max_pass = 0;
@@ -51,7 +53,9 @@ int main(int argc, char **argv) {
     int64_t d = next - now_ns();
     if (d > 0) { struct timespec r = {(time_t)(d / 1000000000LL), (long)(d % 1000000000LL)}; nanosleep(&r, 0); }
     int64_t t0 = now_ns();
-    for (int k = 0; k < total; k++) {
+    for (int o = 0; o < total; o++) {
+      /* blocked (default): all of port 0's clients, then port 1's. interleave: one client per port in turn. */
+      int k = interleave ? (o % np) * per + o / np : o;
       e.gid = (uint32_t)k + 1;
       e.pos_um_x = i;
       xr_grid_entity_packet_encode(&e, pk);
@@ -64,6 +68,6 @@ int main(int argc, char **argv) {
   }
   char cpus[ET_CPUS_LEN];
   et_cpus_allowed(cpus, sizeof cpus);
-  printf("load cpus=%s sockets=%d sends=%d max_pass_ns=%lldns slow_passes=%d sends_failed=%d\n", cpus, total, sends, (long long)max_pass, slow, failed);
+  printf("load cpus=%s order=%s sockets=%d sends=%d max_pass_ns=%lldns slow_passes=%d sends_failed=%d\n", cpus, interleave ? "interleave" : "blocked", total, sends, (long long)max_pass, slow, failed);
   return 0;
 }
