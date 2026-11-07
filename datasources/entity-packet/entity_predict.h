@@ -24,7 +24,7 @@ static inline xr_i128 xr_tang(xr_i128 p0, xr_i128 p1, xr_i128 p2, xr_i128 p3)
 /* Round half away from zero; d > 0. */
 static inline xr_i128 xr_rdiv(xr_i128 n, xr_i128 d)
 {
-	return n >= 0 ? (2 * n + d) / (2 * d) : -((-2 * n + d) / (2 * d));
+	return n / d;
 }
 
 /* Predicted displacement in micrometres of one axis over lag ticks. vpp, vp, vf are the Int16 vel
