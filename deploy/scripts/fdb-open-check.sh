@@ -4,7 +4,7 @@
 #  - the default path to a missing file must be refused with its own error;
 #  - a built-in positive control: the default path still opens a real SQLite file.
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 bin=.lake/build/bin/sqlite-check
 fail=0
 out=$(WEFT_FDB_CLUSTER_FILE=/nonexistent timeout 60 "$bin" "fdb:x" 2>&1); rc=$?

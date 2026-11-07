@@ -11,7 +11,7 @@ OUT=/out/profiles; mkdir -p $OUT
 mkdir -p /w && cd /src && tar cf - --exclude=.lake --exclude=.git --exclude=target . | tar xf - -C /w && cd /w
 bash deploy/scripts/fetch-sqlite.sh
 lake build feed-server 2>&1 | grep -E "^error|Build" | head -3
-(cd reference && CARGO_PROFILE_RELEASE_DEBUG=line-tables-only RUSTFLAGS="-C force-frame-pointers=yes" bash build.sh 2>&1 | tail -1)
+(cd datasources/reference && CARGO_PROFILE_RELEASE_DEBUG=line-tables-only RUSTFLAGS="-C force-frame-pointers=yes" bash build.sh 2>&1 | tail -1)
 git clone -q --depth 1 https://github.com/arjaythedev/twelve-dollar-server-challenge.git /c
 (cd /c && bash seed/make-seed.sh >/dev/null 2>&1)
 NCPU=$(nproc); LOADCPUS="1-$((NCPU-1))"

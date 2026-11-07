@@ -5,7 +5,7 @@
 #   run 2 on that name:  the like exists (false) and the post gets id 2  -> data survived a reopen
 #   run 1 on another name: id 1 again                                   -> names are isolated
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../.."
 bin=.lake/build/bin/sqlite-check
 base="${1:-live-$$}"
 fail=0

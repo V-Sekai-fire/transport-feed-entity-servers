@@ -8,7 +8,7 @@ S=twelve-dollar-challenge
 mkdir -p /w && cd /src && tar cf - --exclude=.lake --exclude=.git --exclude=target . | tar xf - -C /w && cd /w
 bash deploy/scripts/fetch-sqlite.sh
 echo "== build Lean";  lake build feed-server 2>&1 | grep -E "^error|Build" | head -3
-echo "== build Rust";  (cd reference && bash build.sh 2>&1 | tail -2)
+echo "== build Rust";  (cd datasources/reference && bash build.sh 2>&1 | tail -2)
 echo "== seed"
 git clone -q --depth 1 https://github.com/arjaythedev/twelve-dollar-server-challenge.git /c
 (cd /c && bash seed/make-seed.sh >/dev/null 2>&1)
@@ -84,7 +84,7 @@ mk jwt-noncanon-b64 "POST /posts HTTP/1.1\r\nAuthorization: Bearer ${GOOD%.*}.$(
 G feed-after /feed; G post-new /posts/1000001; G health-after /health
 
 echo "== run $n cases"
-( cd /w/reference && SQLITE_PATH=/tmp/rust.db JWT_SECRET=$S HOST=127.0.0.1 PORT=3001 ./target/release/feed-server 2>/tmp/rust.err & )
+( cd /w/datasources/reference && SQLITE_PATH=/tmp/rust.db JWT_SECRET=$S HOST=127.0.0.1 PORT=3001 ./target/release/feed-server 2>/tmp/rust.err & )
 ( cd /w && SQLITE_PATH=/tmp/lean.db JWT_SECRET=$S HOST=127.0.0.1 PORT=3000 .lake/build/bin/feed-server 2>/tmp/lean.err & )
 sleep 3
 send() { ( cat "$2"; [ -f "${2}2" ] && { sleep 0.3; cat "${2}2"; } ) | timeout 4 nc -q1 127.0.0.1 "$1"; }
