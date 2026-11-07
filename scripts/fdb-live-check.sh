@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 bin=.lake/build/bin/sqlite-check
 base="${1:-live-$$}"
 fail=0
-run() { timeout 120 "$bin" "fdb:$1" 2>&1; }
+run() { timeout 120 stdbuf -oL -eL "$bin" "fdb:$1" 2>&1; }
 expect() { # name, output, line
   case "$2" in *"$3"*) ;; *) echo "FAIL $1: missing '$3'"; echo "$2" | tail -15; fail=1;; esac
 }

@@ -66,6 +66,7 @@ static int fail(char *err, int n, const char *what) {
 extern int weft_fdb_start(const char *cluster_file);
 extern int weft_vfs_register(int make_default);
 static int fdb_mode;
+static void fdb_close_at_exit(void);
 static const char FDB_SCHEMA[] =
   "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE,"
   " created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')));"
@@ -188,6 +189,9 @@ int td_open(const char *path, char *err, int n) {
     int e = weft_fdb_start(getenv("WEFT_FDB_CLUSTER_FILE"));
     if (e) { snprintf(err, n, "fdb start: error %d", e); return -1; }
     if (weft_vfs_register(0)) { snprintf(err, n, "fdb vfs: register failed"); return -1; }
+    /* weft_fdb_start registered weft_fdb_stop with atexit; atexit runs last-in first-out, so this
+     * runs before it and the connection is closed while the FDB client is still up. */
+    atexit(fdb_close_at_exit);
   }
   if (sqlite3_open_v2(path, &db, oflags, vfs))
     return fail(err, n, "open");
@@ -271,6 +275,16 @@ static int step_reset(sqlite3_stmt *s) {
   int rc = sqlite3_step(s);
   sqlite3_reset(s);
   return rc;
+}
+
+static void close_cursors(void);
+static void fdb_close_at_exit(void) {
+  if (!db) return;
+  if (in_batch) { in_batch = 0; close_cursors(); if (!sqlite3_get_autocommit(db)) step_reset(st_rollback); }
+  sqlite3_stmt **all[] = {&st_begin, &st_commit, &st_rollback, &st_post, &st_like, &st_health, &st_feed};
+  for (size_t i = 0; i < sizeof all / sizeof all[0]; i++) { sqlite3_finalize(*all[i]); *all[i] = 0; }
+  sqlite3_close_v2(db);
+  db = 0;
 }
 
 static void close_cursors(void) {
