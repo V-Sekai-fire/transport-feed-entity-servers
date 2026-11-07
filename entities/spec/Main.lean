@@ -1,4 +1,4 @@
-import FeedServer
+import FeedServer.All
 import Fake
 open FeedServer
 
