@@ -99,7 +99,7 @@ typedef struct {
 \tuint32_t hlc;
 \tuint32_t class_owner; /* (class << 24) | owner */
 \tuint32_t sub_index;
-\tint16_t rot_x, rot_y, rot_z; /* swing-twist */
+\tint16_t rot_x, rot_y, rot_z; /* swing X, swing Z, twist Y, in the wire frame */
 \tuint8_t payload[XR_PACKET_PAYLOAD_LEN];
 } xr_grid_entity_packet_t;
 

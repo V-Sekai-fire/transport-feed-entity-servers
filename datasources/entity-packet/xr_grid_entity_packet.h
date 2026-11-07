@@ -45,7 +45,7 @@ typedef struct {
 	uint32_t hlc;
 	uint32_t class_owner; /* (class << 24) | owner */
 	uint32_t sub_index;
-	int16_t rot_x, rot_y, rot_z; /* swing-twist */
+	int16_t rot_x, rot_y, rot_z; /* swing X, swing Z, twist Y, in the wire frame */
 	uint8_t payload[XR_PACKET_PAYLOAD_LEN];
 } xr_grid_entity_packet_t;
 
