@@ -90,3 +90,9 @@ jobs:
       - name: Clean run stays inside the budget
         run: |
           for i in 1 2 3 4 5 6 7 8; do "$RUNNER_TEMP/entity_check" || exit 1; done
+      - name: Build the server and the loader
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_serve.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_serve"
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"
+      - name: Two pinned layouts, planted defect on server B only
+        run: BIN="$RUNNER_TEMP" bash deploy/scripts/tick-layouts.sh
