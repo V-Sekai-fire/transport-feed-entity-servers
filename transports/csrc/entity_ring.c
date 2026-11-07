@@ -32,7 +32,6 @@ static int start(unsigned flags) {
   info[0] = 0;
   return 0;
 }
-static int open_plain(int fd) { (void)fd; return start(0); }
 
 static int sq_tid(void) {
   DIR *d = opendir("/proc/self/task");
@@ -126,7 +125,6 @@ static int send_all(int fd, const et_out_t *o, int n) {
 static void ring_close(void) {
   if (up) { io_uring_queue_exit(&ring); up = 0; }
 }
-const et_io_t et_ring_io = {open_plain, send_all, ring_close};
 const et_io_t et_sqpoll_io = {open_sqpoll, send_all, ring_close};
 const char *et_ring_info(void) { return info; }
 #else

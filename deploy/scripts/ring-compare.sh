@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Send path compared: plain sendto, io_uring, io_uring with SQPOLL. One server pinned to vCPU 0, the loader
+# Send path compared: plain sendto, io_uring with SQPOLL (the plain io_uring variant was trimmed, see docs/tick-budget.md). One server pinned to vCPU 0, the loader
 # on vCPU 2, the SQPOLL kernel thread moved to vCPU 3. Receive stays on plain syscalls in every variant.
 # Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved
 # across the variants so drift on the VM lands on all of them. Clean runs are a distribution, not a verdict.
@@ -7,7 +7,7 @@ set -u
 BIN=${BIN:?directory holding entity_serve_ring and entity_load}
 RUNS=${RUNS:-8}
 LEVELS=${LEVELS:-"64 256"}
-VARIANTS="plain ring sqpoll"
+VARIANTS="plain sqpoll"
 TICKS=192 SENDS=160 PORT=47321 SV=0 LD=2
 T=$(mktemp -d)
 fail=0
