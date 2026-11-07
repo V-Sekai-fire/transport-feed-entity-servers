@@ -217,3 +217,21 @@ Clean p99 median (min to max), in µs:
 
 Server 1 runs on vCPU 2, whose SMT sibling vCPU 3 carries the loader. Server 0's sibling, vCPU 1, is idle. A tail gap that grows with the load fits sharing a core with the loader, and it is only a fit: both runs used one placement. Swapping the servers' vCPUs would separate the core from the process. Until then, read the two-server rows as "the slower server of a pair", and plan on about 0.5 to 0.9 ms of extra p99 for the server that shares a core.
 
+## Send path attribution: the sendto calls against the rest of the tick
+
+`entity_serve ... nosend` runs the full tick and skips the `sendto` calls (a control, not a send path). The `tick-nosend` job ran it at 256, 384, 512 and 640 clients with 8 clean runs and 3 planted 6 ms runs per level. The `tick-wall` job ran `plain` in the same CI run (42412589675). Raw output: `study/send-control-run-1.txt`. Kernel `7.0.0-1017-azure`, 4 vCPUs, server on vCPU 0, loader on vCPU 2.
+
+| Clients | Clean p50 per client, plain (ns) | Clean p50 per client, nosend (ns) | Difference (ns) | Share in the sendto calls | Clean p99 min to max, plain (µs) | Clean p99 min to max, nosend (µs) | Clean over 4 ms, plain | Clean over 4 ms, nosend |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 256 | 6434 | 1478 | 4956 | 77 % | 2300 to 2389 | 437 to 486 | 0 of 8 runs | 0 of 8 runs |
+| 384 | 6342 | 1545 | 4797 | 76 % | 3521 to 3620 | 645 to 711 | 0 of 8 runs | 0 of 8 runs |
+| 512 | 6191 | 1562 | 4629 | 75 % | 4610 to 5300 | 886 to 1731 | 8 of 8 runs | 0 of 8 runs |
+| 640 | 6149 | 1570 | 4579 | 74 % | 5761 to 7212 | 1134 to 1204 | 8 of 8 runs | 0 of 8 runs |
+
+What it shows: about three quarters of the per-client cost is in the `sendto` calls, and the rest (receive plus the copy of a 1200-byte datagram) is about 1500 ns per client. With the sends skipped, no clean run went over 4 ms through 640 clients, so the wall found above is the send path. The planted 6 ms handler was caught in 3 of 3 runs at every nosend level, with the planted p50 5.99 to 6.01 ms above the clean p50, so the nosend levels are valid under the same rule as the sweep above. The 512-client nosend p99 maximum (1731 µs against a minimum of 886 µs) is one run, not a trend.
+
+What it does not show:
+- On loopback the sender runs the receiving socket's work inside `sendto`, so the 74 to 77 % share is an upper bound for a real network card.
+- `plain` and `nosend` ran in different jobs, so on different runner VMs. The ring record above showed a 37 % drift between runs on one runner. The ratio is robust to that and the absolute nanoseconds are not.
+- Under `nosend`, `datagrams_out` counts nothing real.
+- One runner, 8 clean runs per level, no isolation, loopback only.
