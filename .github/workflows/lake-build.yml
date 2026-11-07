@@ -1,0 +1,83 @@
+# The spec, its own bytes, and the C that claims to agree with them.
+#
+# There was no workflow here, which was survivable while the only consumer of this repository
+# was a person reading `packet_golden.csv`. It stopped being survivable when `packet_emit`
+# started emitting `xr_grid_entity_packet.h`: an emitted header is checked out by other
+# repositories, and a generated file nothing verifies is a file that drifts from its generator
+# without anybody finding out until a wire stops decoding.
+name: lake build
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: lake-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: setup toolchain + cache + build EntityPacket
+        uses: leanprover/lean-action@v1
+        with:
+          build-args: "EntityPacket"
+          test: false
+          lint: false
+
+      # Plausible's roundtrip properties over 50000 vectors. This is what makes the spec worth
+      # emitting from: it finds codec gaps without an engine rebuild.
+      - name: Roundtrip properties
+        run: lake exe packet_demo
+
+      - name: Emit the golden vectors and the C header
+        run: lake exe packet_emit
+
+      # The committed copy at the root is what other repositories vendor. If it and the freshly
+      # emitted one differ, somebody edited the spec and did not re-emit, and every consumer is
+      # now holding bytes the spec no longer produces.
+      - name: The committed golden vectors are still the emitted ones
+        run: diff -u packet_golden.csv build/packet_golden.csv
+
+      - name: The committed C header is still the emitted one
+        run: diff -u xr_grid_entity_packet.h build/xr_grid_entity_packet.h
+
+      # And the differential: the emitted C encoder must produce the Lean bytes, not merely
+      # compile. `packet_diff.gd` is this same check for GDScript.
+      - name: The C codec agrees with the Lean bytes
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -I build test/golden.c -o build/golden
+          ./build/golden build/packet_golden.csv
+      - name: Rotation converters round trip and catch their planted defects
+        run: |
+          lake build rot_check
+          lake exe rot_check
+
+      # The integer makima kernel: properties, a distance to the Float reference, and a planted defect.
+      - name: Prediction kernel properties
+        run: |
+          lake build predict_check
+          lake exe predict_check
+      - name: The floor-division kernel is caught
+        run: "! lake exe predict_check plant"
+      - name: The committed prediction header and vectors are still the emitted ones
+        run: |
+          diff -u entity_predict.h build/entity_predict.h
+          diff -u predict_golden.csv build/predict_golden.csv
+      - name: The C prediction kernel agrees with the Lean numbers
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror -I build test/predict_golden.c -o build/predict_golden
+          ./build/predict_golden build/predict_golden.csv
+      - name: A C kernel that truncates instead of rounding is caught
+        run: |
+          mkdir -p build/plant
+          python3 -c "s=open('build/entity_predict.h').read(); o='return n >= 0 ? (2 * n + d) / (2 * d) : -((-2 * n + d) / (2 * d));'; assert o in s; open('build/plant/entity_predict.h','w').write(s.replace(o,'return n / d;'))"
+          cc -std=c11 -I build/plant test/predict_golden.c -o build/predict_golden_plant
+          ! ./build/predict_golden_plant build/predict_golden.csv

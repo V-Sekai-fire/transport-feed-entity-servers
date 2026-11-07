@@ -1,3 +1,2 @@
 .lake/
-datasources/reference/vendor/
-datasources/reference/target/
+build/

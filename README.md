@@ -1,42 +1,24 @@
-# transport-iouring-feed-server
+# contract-entity-packet
 
-Lean 4 port of the Rust `rust-iouring-kensac` submission (MIT, @kensac) to the arjaythedev
-twelve-dollar-server-challenge. The original source is kept in `datasources/reference/`.
+The Lean 4 source of truth for the fabric's fixed-size, all-integral entity packet, with property tests and emitted codecs.
 
-SQLite is not rewritten: the unmodified 3.54.1 amalgamation and the original B-tree shim
-(`datasources/csrc/shim.c`, one portability guard for `SYS_gettid`) are bound over a thin Lean-ABI glue
-(`datasources/csrc/lean_glue.c`). The submission has no FoundationDB code. A `fdb:<name>` path opens the store's FoundationDB VFS
-(`datasources/store`); CI checks open, write and reopen against a live cluster, and the parity figures
-below were measured on SQLite only.
+## What it is for
 
-`entity-server` is a sibling of `feed-server`: a 64 Hz UDP tick (skateboard slice, plain syscalls, not yet
-io_uring), with the 100-byte packet layout from `datasources/entity-packet`. See RFD66606-2442 and RFD66606-2443.
+The packet carries no floats, so Lean models it exactly and Plausible roundtrip properties find codec gaps without an engine rebuild. `EntityPacket/Codec.lean` names each offset once; the encoder, the decoder and the C and Python emitters all read it. The emitted `xr_grid_entity_packet.h` and `xr_grid_entity_packet.py` are committed so a repository that vendors this one gets a codec without running Lean. Edit `Codec.lean` and replace them with what `packet_emit` writes rather than editing either by hand.
 
-## Layers
-- `Http`: request parser. Proved: a parsed request never claims more bytes than the buffer holds.
-- `Json`: validating reader, unescape, escape. Fixture-tested.
-- `Sha256`, `Jwt`: HMAC-SHA256, base64url, HS256 verification. RFC vectors pass.
-- `Record`: SQLite varint and record decoding. Proved: reads stay in bounds, column sizes match their serial types.
-- `Db`: feed, post, likes and inserts over an abstract `Cursors` record. Tested on an in-memory fake and on a real SQLite file.
-- `App`: routing and handlers. Proved: Content-Length always matches the body. A write sets `wrote`, and `endBatch` commits.
-- `Conn`: per-connection serve and batch policy. Proved: a rolled-back batch closes the connection and drops its answers.
-- `Server` + `transports/csrc/ring_glue.c`: io_uring event loop (Linux only).
+## Prediction kernel
 
-## Verification
-- `lake exe feed-tests`: 62 checks (Mac and Linux).
-- `deploy/scripts/smoke.sh`: curl smoke test.
-- `deploy/scripts/accept.sh`: the challenge's own `test/test.sh` (42/42) against the Lean server, in a privileged Ubuntu 24.04 container (`deploy/Containerfile`).
+`EntityPacket/Predict.lean` is a dead-reckoning kernel in whole numbers: the Makima curve through the `vel` samples of an acked snapshot at ticks L-2, L-1 and L and the packet's own at L+lag, summed over the lag, in micrometres. `entity_predict.h` is emitted from it, with 128 bit products. It does not change the wire. A decoder that uses it holds three acked snapshots of `vel` per entity per client. `lake exe predict_check` runs its properties.
 
-## Differences from the Rust original (not tuned)
-- One ring with single-shot accept/recv/send: no multishot, provided-buffer rings or spill rings.
-- Each SQLite payload is copied once into a `ByteArray`.
-- Held writes are retried each pass.
-- Not load-tested, so no throughput claim.
+## Build, test and emit
 
-## Build
+```sh
+lake exe packet_demo
+lake exe packet_emit
 ```
-bash deploy/scripts/fetch-sqlite.sh      # pinned SQLite amalgamation, sha256-checked
-lake build feed-tests && lake exe feed-tests
-podman build -t feed-lean -f deploy/Containerfile .
-podman run --rm --privileged -v "$PWD":/src:ro feed-lean bash /src/deploy/scripts/accept.sh
-```
+
+`VERIFY.md` holds the differentials that keep the C codec, the Python codec and the engine in agreement with this specification.
+
+## Licence
+
+MIT; see `LICENSE`.

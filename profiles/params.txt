@@ -1,1 +1,0 @@
-cpus=8 server=0 load=1-7 vus=3000 ramp=10s hold=30s record=20s
