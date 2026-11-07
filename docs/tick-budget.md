@@ -84,3 +84,26 @@ First run, kernel `7.0.0-1017-azure`, uid 1001:
 
 So the runner does not block io_uring, and the comparison against plain syscalls can run on it. That a ring can be created does not show that SQPOLL helps: with one vCPU per server it would poll on the tick's own core or take the spare, so it stays a separate labelled variant. One runner, one kernel, one run: a different runner image can answer differently, and every run of the job reprints the probe.
 
+## Send path: plain, io_uring, io_uring with SQPOLL
+
+`deploy/scripts/ring-compare.sh` runs `entity_serve_ring` three ways at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
+
+**Only the send path differs.** Receive stays on plain syscalls in every variant, so the tick clock means the same for all three. This is not a full ring server, and the numbers below say nothing about a ring receive path.
+
+Run output: `study/ring-compare-run-1.txt`. Kernel `7.0.0-1017-azure`, `io_uring_disabled` 0, `Seccomp` 0.
+
+| Clients | Variant | Planted caught | Clean p99 min, median, max (µs) | Clean over 4 ms |
+| --- | --- | --- | --- | --- |
+| 64 | plain | 8 of 8 runs | 456, 486, 532 | 0 of 8 runs |
+| 64 | ring | 8 of 8 runs | 463, 524, 791 | 0 of 8 runs |
+| 64 | sqpoll | 8 of 8 runs | 465, 498, 658 | 0 of 8 runs |
+| 256 | plain | 8 of 8 runs | 1684, 1710, 1966 | 0 of 8 runs |
+| 256 | ring | 8 of 8 runs | 1667, 1733, 2325 | 0 of 8 runs |
+| 256 | sqpoll | 8 of 8 runs | 1717, 1773, 2823 | 0 of 8 runs |
+
+The SQPOLL kernel thread read back on vCPU 3 in 32 of 32 SQPOLL runs. The first CI run found it in 4 of 32 runs, so the other 28 had the thread on the server's vCPU. That is why the script now forces the thread to exist with a NOP before looking, and fails a run that does not read back on vCPU 3.
+
+What it shows: at both levels the clean p99 ranges of the three variants overlap, so this run finds no difference between them. The ring medians sit 38 µs (64 clients) and 23 µs (256 clients) above plain, inside the spread of 8 runs, and its maximum is the largest of the three at 256 clients after SQPOLL. At 256 clients plain makes 256 `sendto` calls per tick. Replacing them with one submit did not move the p99, so at this load the per-call syscall entry is not what the tick spends its time on. The copy of each 1200-byte datagram into the loopback receive path happens in the kernel either way.
+
+What it does not show: a gain from a ring receive path, behaviour with more than 256 clients, or anything off loopback. One runner, 8 runs per variant and level, no isolation. In some plain and SQPOLL runs `datagrams_out` read above 44288 at 256 clients (44800 and 47104 in one run each) because the count follows when the loader's first packets reach the server, not the variant.
+
