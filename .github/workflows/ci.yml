@@ -168,3 +168,22 @@ jobs:
           cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"
       - name: Same sweep with the sendto calls skipped (control for the send path)
         run: BIN="$RUNNER_TEMP" BACKEND=nosend LEVELS="256 384 512 640" RUNS=8 PLANTED=3 bash deploy/scripts/client-sweep.sh
+  tick-sendmmsg:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Runner conditions
+        run: |
+          uname -r
+          nproc
+          grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+          if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
+      - name: Build the server and the loader
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_serve.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_serve"
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror transports/csrc/entity_load.c -o "$RUNNER_TEMP/entity_load"
+      - name: Plain, then sendmmsg, on the same runner VM (back to back, not interleaved)
+        run: |
+          BIN="$RUNNER_TEMP" BACKEND=plain LEVELS="384 512 640 768" RUNS=8 PLANTED=3 bash deploy/scripts/client-sweep.sh
+          BIN="$RUNNER_TEMP" BACKEND=sendmmsg LEVELS="384 512 640 768" RUNS=8 PLANTED=3 bash deploy/scripts/client-sweep.sh
