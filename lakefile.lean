@@ -24,13 +24,19 @@ def sqliteDefs : Array String := #[
 target shim.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "shim.o"
   let src ← inputTextFile (pkg.dir / "csrc" / "shim.c")
-  buildO oFile src (#["-I", (pkg.dir / "reference" / "vendor").toString] ++ sqliteDefs)
+  let lean ← getLeanInstall
+  let cc : FilePath := "cc"
+  let fl : Array String := #["-fPIC"]
+  buildO oFile src (fl ++ #["-I", (pkg.dir / "reference" / "vendor").toString] ++ sqliteDefs) #[] cc
 
 target glue.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "lean_glue.o"
   let src ← inputTextFile (pkg.dir / "csrc" / "lean_glue.c")
   let inc ← getLeanIncludeDir
-  buildO oFile src #["-I", inc.toString, "-O2", "-fPIC"]
+  let lean ← getLeanInstall
+  let cc : FilePath := "cc"
+  let fl : Array String := #["-fPIC"]
+  buildO oFile src (fl ++ #["-I", inc.toString, "-O2", "-fPIC"]) #[] cc
 
 extern_lib libtd pkg := do
   let shim ← shim.o.fetch

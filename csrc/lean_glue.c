@@ -123,3 +123,16 @@ LEAN_EXPORT lean_obj_res lean_td_feed_sql(lean_obj_arg w) {
   free(b);
   return lean_io_result_mk_ok(a);
 }
+
+#ifdef __linux__
+/* Lean's bundled glibc predates fcntl64, which objects built against the system glibc reference. */
+#include <stdarg.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+int fcntl64(int fd, int cmd, ...) {
+  va_list ap; va_start(ap, cmd);
+  long arg = va_arg(ap, long);
+  va_end(ap);
+  return (int)syscall(SYS_fcntl, fd, cmd, arg);
+}
+#endif
