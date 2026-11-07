@@ -3,10 +3,10 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main, "dev/**"]
+    branches: [main]
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   fdb-open:
     runs-on: ubuntu-24.04
