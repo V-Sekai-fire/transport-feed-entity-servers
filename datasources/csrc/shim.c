@@ -41,7 +41,7 @@ static u32 spill_cap;
  * checkpoints by itself, as a last resort. */
 #define CKPT_FRAMES 4096
 #define CKPT_FORCE 65536
-#define HOLD_MAX_MS 250
+#define HOLD_MAX_MS 250  /* 250 ms, about 62 ticks of 4 ms */
 /* On one vCPU a checkpoint at the default priority takes the loop's CPU for its whole pass. */
 #define CKPT_NICE 19
 

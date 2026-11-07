@@ -424,6 +424,9 @@ static void clear_prefix(FDBTransaction *tr, const char *name, const char *what)
 // ── The file ──────────────────────────────────────────────────────────────────
 
 // One page that SQLite wrote and the store has not taken yet.
+// Read-only transaction lifetime: 4000 ms (4 s, not 4 ms). FDB caps a transaction at 5000 ms.
+#define RO_TR_DEADLINE_MS 4000ULL
+
 typedef struct {
 	uint32_t pgno;
 	uint8_t as_delta; // the commit sent this page as a delta, set while the commit is built
@@ -504,7 +507,7 @@ typedef struct {
 	// `flush` (a successful FDB commit) invalidates it, so a reader never sees
 	// bytes older than this connection's own last write.
 	FDBTransaction *ro_tr;
-	uint64_t ro_tr_deadline_us;
+	uint64_t ro_tr_deadline_us;  // microseconds on the wall clock; set from RO_TR_DEADLINE_MS
 
 	// Bases for page deltas, one slot per page number modulo BASE_SLOTS, allocated by the
 	// first read of a writer. A missing base costs a full page, never a wrong one.
@@ -552,7 +555,7 @@ static int run_read_txn(txn_body body, void *ctx, FdbFile *f) {
 			f->ro_tr = tr;
 			// FDB caps a transaction at five seconds; we hold ours for four
 			// so a slow read never trips the cap mid-flight.
-			f->ro_tr_deadline_us = now + 4000000ULL;
+			f->ro_tr_deadline_us = now + RO_TR_DEADLINE_MS * 1000ULL;
 			return SQLITE_OK;
 		}
 
@@ -1888,7 +1891,7 @@ static fdb_error_t finish_body(FDBTransaction *tr, void *ctx, int *final) {
 #define FOLD_DEPTH_MAX 8
 
 // Experiment knobs, read once: WEFT_FOLD_DEPTH (1..8), WEFT_FOLD_WINDOW (pages),
-// WEFT_FOLD_GAP_US (a pause between windows). Unset, the fold is what it was.
+// WEFT_FOLD_GAP_US (a pause between windows, 0 to 1,000,000 us = 0 to 1000 ms). Unset, the fold is what it was.
 static long fold_knob(const char *name, long dflt, long lo, long hi) {
 	const char *s = getenv(name);
 	if (!s || !*s) return dflt;
