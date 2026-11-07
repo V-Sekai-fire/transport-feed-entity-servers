@@ -196,3 +196,24 @@ What it shows: at 64 Hz on this VM, two 320-client cells are served at about hal
 
 What it does not show: any cost of a shared border (the open interest-grid and server-to-server boxes in #7), 144 Hz, or a split across hosts. Four vCPUs are shared by two servers and a loader, so a split onto real separate machines is not tested here.
 
+### Second run (CI rerun on the branch rebased onto main)
+
+Run output: `study/two-servers-run-2.txt`. Same job, same levels. This runner cost about 6.5 to 6.8 µs of p50 per client against 5.1 µs in the first run, so compare rows inside one run, not across the two.
+
+Clean p99 median (min to max), in µs:
+
+| Clients | One server | Two servers: server 0 | Two servers: server 1 | Over 4 ms, one server | Over 4 ms, two servers |
+| --- | --- | --- | --- | --- | --- |
+| 512 | 4869 (4816 to 5298) | 2396 (2373 to 2413) | 2873 (2832 to 2912) | 8 of 8 runs | 0 of 8 runs |
+| 640 | 6092 (6038 to 6619) | 2988 (2949 to 3280) | 3603 (3389 to 3662) | 8 of 8 runs | 0 of 8 runs |
+| 1024 | 9842 (9715 to 9977) | 4864 (4689 to 5444) | 5720 (5667 to 5790) | 8 of 8 runs | 8 of 8 runs |
+
+- **One server at 512 clients was over in 8 of 8 runs.** The first run had 4 of 8. The prediction that missed in the first run holds in the second, so that miss was runner drift. Neither run says where inside 384 to 512 clients the wall sits.
+- **Two servers at 640 clients stayed under 4 ms in 0 of 8 runs over.** The slower server's p99 median was 3.60 ms and its largest was 3.66 ms. That is close to the budget, and 4 of 8 runs had a server above 3.6 ms. The first run had 2 of 8.
+- **The prediction of about 2.9 ms per server at 640 clients held for server 0 (2.99 ms) and not for server 1 (3.60 ms).**
+- **Server 1 was slower than server 0 again, and by more.** The p99 medians differ by 0.48, 0.62 and 0.86 ms at 512, 640 and 1024 clients (first run: 0.23, 0.19 and 0.31 ms). The p50 medians differ by only 17, 16 and 63 µs (1.0, 0.8 and 1.9 %). So the gap is in the tail, not in the typical tick. The 0.3 ms gap falsifier was tripped at every level in this run.
+- **The split still halves the tail.** At 640 clients the slowest server's p99 median is 3.60 ms against 6.09 ms for one server. The cost per client was the same in both modes within a run (6.5 to 6.8 µs).
+- **The planted defect on server 1 did not move server 0.** Server 0's p50 median in the planted runs against its clean median: +0.7 µs at 512 clients, -8 µs at 640 and -30 µs at 1024. Server 1's planted p50 sat 6.34, 6.41 and 6.31 ms above its clean p50.
+
+Server 1 runs on vCPU 2, whose SMT sibling vCPU 3 carries the loader. Server 0's sibling, vCPU 1, is idle. A tail gap that grows with the load fits sharing a core with the loader, and it is only a fit: both runs used one placement. Swapping the servers' vCPUs would separate the core from the process. Until then, read the two-server rows as "the slower server of a pair", and plan on about 0.5 to 0.9 ms of extra p99 for the server that shares a core.
+
