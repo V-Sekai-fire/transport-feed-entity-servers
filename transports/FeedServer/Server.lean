@@ -12,8 +12,9 @@ namespace FeedServer.Server
 @[extern "lean_ring_send"] opaque ringSend (slot tag : UInt32) (data : @& ByteArray) (off : USize) : IO Nat
 @[extern "lean_ring_close"] opaque ringClose (slot : UInt32) : IO Unit
 @[extern "lean_ring_wait"] opaque ringWait (timeoutNs : UInt64) : IO ByteArray
-/-- Wait up to `ms` milliseconds for a completion. Under 1000 ms only: the C side puts the
-nanoseconds in `tv_nsec` with `tv_sec` 0. The kernel timespec needs ns, so `ringWait` stays the ns primitive. -/
+/-- Wait up to `ms` milliseconds for a completion. The C side splits the nanoseconds into
+`tv_sec` and `tv_nsec`, so any `ms` whose nanoseconds fit in `UInt64` is valid (up to
+18,446,744,073,709 ms). The kernel timespec needs ns, so `ringWait` stays the ns primitive. -/
 def ringWaitMs (ms : UInt64) : IO ByteArray := ringWait (ms * 1000000)
 @[extern "lean_wall_ms"] opaque wallMs : IO UInt64
 

@@ -109,7 +109,7 @@ LEAN_EXPORT lean_obj_res lean_ring_close(uint32_t slot, lean_obj_arg w) {
 }
 
 LEAN_EXPORT lean_obj_res lean_ring_wait(uint64_t timeout_ns, lean_obj_arg w) {
-  struct __kernel_timespec ts = { 0, (long long)timeout_ns };
+  struct __kernel_timespec ts = { (long long)(timeout_ns / 1000000000ULL), (long long)(timeout_ns % 1000000000ULL) };
   struct io_uring_cqe *cqe;
   io_uring_submit_and_wait_timeout(&ring, &cqe, 1, &ts, NULL);
   size_t len = 0, cap = 4096;
