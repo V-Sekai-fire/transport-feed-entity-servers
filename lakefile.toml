@@ -1,0 +1,10 @@
+name = "iouring-feed-server-lean"
+version = "0.1.0"
+defaultTargets = ["FeedServer"]
+
+[[lean_lib]]
+name = "FeedServer"
+
+[[lean_exe]]
+name = "feed-tests"
+root = "Tests.Main"
