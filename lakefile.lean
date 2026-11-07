@@ -53,8 +53,14 @@ extern_lib libtd pkg := do
 /-- The store's FoundationDB VFS (subtree at store/), built against this repo's vendored sqlite3.h. -/
 target fdbvfs.o pkg : FilePath := do
   let oFile := pkg.buildDir / "csrc" / "fdb_vfs.o"
-  let src ← inputTextFile (pkg.dir / "store" / "fdb_vfs.c")
-  buildO oFile src #["-fPIC", "-O2", "-DFDB_API_VERSION=730", "-I", (pkg.dir / "reference" / "vendor").toString, "-I", "/usr/local/include", "-I", "/usr/local/include/foundationdb"] #[] "cc"
+  let hdr : FilePath := "/usr/include/foundationdb/fdb_c.h"
+  if (← hdr.pathExists) then
+    let src ← inputTextFile (pkg.dir / "store" / "fdb_vfs.c")
+    buildO oFile src #["-fPIC", "-O2", "-DFDB_API_VERSION=730", "-I", (pkg.dir / "store").toString, "-I", (pkg.dir / "reference" / "vendor").toString, "-I", "/usr/include/foundationdb"] #[] "cc"
+  else
+    let src ← inputTextFile (pkg.dir / "csrc" / "fdb_stub.c")
+    buildO oFile src #["-fPIC"] #[] "cc"
+
 extern_lib libweftfdb pkg := do
   let o ← fdbvfs.o.fetch
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "weftfdb") #[o]
