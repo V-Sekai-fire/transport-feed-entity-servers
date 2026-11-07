@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
   et_report_t r;
   et_cpus_allowed(cpus, sizeof cpus);
   int rc = et_run("127.0.0.1", port, ticks, slow, 0, &r);
-  printf("%s cpus=%s rc=%d ticks=%u in=%u out=%u overruns=%u p50=%lld p95=%lld p99=%lld max=%lld ns\n", argv[1], cpus, rc,
+  printf("%s cpus=%s rc=%d ticks=%u packets_in=%u datagrams_out=%u overruns=%u p50=%lldns p95=%lldns p99=%lldns max=%lldns\n", argv[1], cpus, rc,
          r.ticks, r.packets_in, r.datagrams_out, r.overruns, (long long)r.p50_ns, (long long)r.p95_ns, (long long)r.p99_ns,
          (long long)r.max_ns);
   if (rc != 0 || r.packets_in < 80) { puts("FAIL: no traffic"); return 1; }

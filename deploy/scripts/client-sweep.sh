@@ -70,7 +70,7 @@ for n in $LEVELS; do
     p99s="$p99s $(head -1 "$T/s.out" | sed -n 's/.* p99=\([0-9]*\).*/\1/p')"
   done
   sorted=$(printf '%s\n' $p99s | sort -n)
-  echo "level $n: planted caught $caught of $RUNS; clean p99 min $(echo "$sorted" | head -1) max $(echo "$sorted" | tail -1) ns; clean over the 4 ms budget in $over of $RUNS"
+  echo "level $n clients: planted caught $caught of $RUNS runs; clean p99 min=$(echo "$sorted" | head -1)ns max=$(echo "$sorted" | tail -1)ns; clean over the 4 ms budget in $over of $RUNS runs"
 done
 [ "$fail" = 0 ] && echo "sweep: ok" || echo "sweep: failing"
 exit "$fail"
