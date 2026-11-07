@@ -20,8 +20,8 @@ tok() { local h p; h=$(printf '%s' "$1" | b64); p=$(printf '%s' "$2" | b64)
 HDR='{"alg":"HS256","typ":"JWT"}'
 GOOD=$(tok "$HDR" '{"sub":"1","username":"ann","exp":4102444800}')
 D=/tmp/cases; rm -rf $D; mkdir -p $D; n=0
-mk() { n=$((n+1)); f=$(printf '%s/%03d-%s.req' $D $n "$1"); { printf '%b' "$2"; printf '%s' "${3-}"; } > "$f"; }
-mk2() { f=$(printf '%s/%03d-%s.req2' $D $n "$1"); printf '%b' "$2" > "$f"; }
+mk() { n=$((n+1)); f=$(printf '%s/%03d-%s.req' $D $n "${1//[^A-Za-z0-9._-]/_}"); { printf '%b' "$2"; printf '%s' "${3-}"; } > "$f"; }
+mk2() { f=$(printf '%s/%03d-%s.req2' $D $n "${1//[^A-Za-z0-9._-]/_}"); printf '%b' "$2" > "$f"; }
 G() { mk "$1" "GET $2 HTTP/1.1\r\nHost: x\r\n\r\n"; }
 PB() { mk "$1" "POST $2 HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer $3\r\nContent-Length: ${#4}\r\n\r\n" "$4"; }
 LK() { mk "$1" "POST $2 HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer $3\r\n\r\n"; }
@@ -89,12 +89,16 @@ sleep 3
 send() { ( cat "$2"; [ -f "${2}2" ] && { sleep 0.3; cat "${2}2"; } ) | timeout 4 nc -q1 127.0.0.1 "$1"; }
 YM=$(date -u +%Y-%m)
 norm() { sed -E "s/${YM}-[0-9]{2}T[0-9:.]+Z/TS/g; s/\"uptime_s\":[0-9]+/\"uptime_s\":N/g"; }
-same=0; diffs=0
+same=0; diffs=0; nonempty=0; : > /tmp/status.rust
 for f in $(ls $D/*.req | sort); do
   b=$(basename $f .req)
   send 3001 $f | norm > /tmp/o.rust; send 3000 $f | norm > /tmp/o.lean
+  [ -s /tmp/o.rust ] && nonempty=$((nonempty+1))
+  head -1 /tmp/o.rust | tr -d '\r' >> /tmp/status.rust
   if cmp -s /tmp/o.rust /tmp/o.lean; then same=$((same+1)); else
     diffs=$((diffs+1)); echo "DIFF $b"; echo "  rust: $(head -c 300 /tmp/o.rust | cat -v | tr '\n' ' ')"; echo "  lean: $(head -c 300 /tmp/o.lean | cat -v | tr '\n' ' ')"; fi
 done
-echo "identical=$same different=$diffs of $n"
+echo "identical=$same different=$diffs cases=$(ls $D/*.req | wc -l) rust_nonempty=$nonempty"
+echo "== rust status lines"; sort /tmp/status.rust | uniq -c | sort -rn
+echo "== rust stderr"; head -3 /tmp/rust.err; echo "== lean stderr"; head -3 /tmp/lean.err
 pkill feed-server 2>/dev/null; true
