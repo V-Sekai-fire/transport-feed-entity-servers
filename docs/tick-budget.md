@@ -86,9 +86,9 @@ So the runner does not block io_uring, and the comparison against plain syscalls
 
 ## Send path: plain, io_uring, io_uring with SQPOLL
 
-`deploy/scripts/ring-compare.sh` runs `entity_serve_ring` three ways at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
+`deploy/scripts/ring-compare.sh` ran `entity_serve_ring` three ways in the recorded run, and now runs two (`ring` was trimmed, see the last section), at 64 and 256 clients: `plain` (one `sendto` per datagram), `ring` (one `sendmsg` per datagram queued on an io_uring, one submit, every completion reaped before the tick clock stops) and `sqpoll` (the same ring with SQPOLL, its kernel thread moved to vCPU 3, the spare). Server on vCPU 0, loader on vCPU 2. Per level and variant: 8 planted 6 ms runs that must each fail the budget, then 8 clean runs interleaved across the variants so drift on the VM lands on all three. The script fails any SQPOLL run whose kernel thread did not read back on vCPU 3.
 
-**Only the send path differs.** Receive stays on plain syscalls in every variant, so the tick clock means the same for all three. This is not a full ring server, and the numbers below say nothing about a ring receive path.
+**Only the send path differs.** Receive stays on plain syscalls in every variant, so the tick clock means the same for every variant. This is not a full ring server, and the numbers below say nothing about a ring receive path.
 
 Run output: `study/ring-compare-run-1.txt`. Kernel `7.0.0-1017-azure`, `io_uring_disabled` 0, `Seccomp` 0.
 
@@ -136,7 +136,7 @@ What it does not show: where the slot overruns (the sweep stopped at 512 clients
 The plain io_uring variant (`ring`) is removed from `entity_serve` and `ring-compare.sh`. Reason: it is dominated. It never wins an axis in either record, and it adds a code path.
 
 - CI run 1 (table above): ring median is above plain at 64 and 256 clients, and its maximum is second-worst at 256.
-- Local 8-run record, p99 mean (ns, std): 64 clients plain 666761 (15121), ring 699934 (39170), sqpoll 559967 (20859). 256 clients plain 2238279 (27614), ring 2260388 (45861), sqpoll 2166475 (193243).
-- Spread-penalised budget, period / (1 + 4 cs) with cs = std / mean (a proxy: this std is across runs of the p99, not frame time): ring has the least headroom at 64 clients and less than plain at 256.
+- 8-run record supplied by iFire (host, kernel and pinning not recorded, so it is not the same record as the CI table), p99 mean (ns, std): 64 clients plain 666761 (15121), ring 699934 (39170), sqpoll 559967 (20859). 256 clients plain 2238279 (27614), ring 2260388 (45861), sqpoll 2166475 (193243).
+- Spread-penalised budget, period / (1 + 4 cs) with cs = std / mean (a proxy: this std is across runs of the p99, not frame time, and the rule was set for 144 Hz). Factor 1+4cs at 64 clients: plain 1.09, ring 1.22, sqpoll 1.15. At 256 clients: plain 1.05, ring 1.08, sqpoll 1.36. So ring has the least headroom at 64, and sqpoll the least at 256.
 
 Kept: `plain` (lowest spread, no extra core) and `sqpoll` (lowest mean at 64 clients, but costs vCPU 3 and has the widest spread at 256, so it is opt-in). The 256-client gap between sqpoll and plain (72 us) is inside sqpoll's spread at 8 runs; it is not shown. The ring-vs-plain gap is not statistically shown either (n = 8); the trim rests on dominance and cost, not on a proven slowdown. The recorded ring rows above stay as history. To re-measure ring, check out the commit before this one.

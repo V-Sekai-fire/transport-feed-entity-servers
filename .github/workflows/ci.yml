@@ -91,7 +91,7 @@ jobs:
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/tick-layouts.sh
       - name: Client sweep, one pinned server, planted defect at every level
         run: BIN="$RUNNER_TEMP" bash deploy/scripts/client-sweep.sh
-      - name: Send path, plain against io_uring against SQPOLL
+      - name: Send path, plain against SQPOLL
         run: |
           cc -std=gnu99 -O2 -Wall -Wextra -Werror -DET_WITH_RING transports/csrc/entity_serve.c transports/csrc/entity_tick.c transports/csrc/entity_ring.c -luring -o "$RUNNER_TEMP/entity_serve_ring"
           BIN="$RUNNER_TEMP" bash deploy/scripts/ring-compare.sh
