@@ -19,7 +19,7 @@ below were measured on SQLite only.
 - `Db`: feed, post, likes and inserts over an abstract `Cursors` record. Tested on an in-memory fake and on a real SQLite file.
 - `App`: routing and handlers. Proved: Content-Length always matches the body. A write sets `wrote`, and `endBatch` commits.
 - `Conn`: per-connection serve and batch policy. Proved: a rolled-back batch closes the connection and drops its answers.
-- `Server` + `transports/csrc/ring_glue.c`: io_uring event loop (Linux only).
+- `Server` + `transports/csrc/poll_glue.c`: poll(2) event loop (POSIX; a Winsock branch is written but not yet compiled).
 
 ## Verification
 - `lake exe feed-tests`: 62 checks (Mac and Linux).

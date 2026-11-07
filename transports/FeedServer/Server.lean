@@ -1,9 +1,9 @@
 import FeedServer.Conn
 import FeedServer.Sqlite
-/-! Event loop policy. The C ring glue (transports/csrc/ring_glue.c) moves bytes; everything else is here:
+/-! Event loop policy. The C socket glue (transports/csrc/poll_glue.c) moves bytes; everything else is here:
 connection slots with generations, drain-then-COMMIT-then-send batches, send resumption,
-held writes. Port of the `Server` part of datasources/reference/src/main.rs, on one ring with
-single-shot accept/recv/send (no provided-buffer rings, no spill rings: simpler, slower). -/
+held writes. Port of the `Server` part of datasources/reference/src/main.rs, over poll(2): a single listener,
+one receive armed per connection, one send in flight per connection (no provided-buffer rings, no spill rings: simpler, slower). -/
 namespace FeedServer.Server
 
 @[extern "lean_net_start"] opaque ringStart (host : @& String) (port : UInt32) : IO String
@@ -158,7 +158,7 @@ def run (path secret host : String) (port : UInt32) : IO UInt32 := do
   let err ← Sqlite.openDb path
   if err != "" then IO.eprintln s!"database: {err}"; return 1
   let e ← ringStart host port
-  if e != "" then IO.eprintln s!"io_uring: {e}"; return 1
+  if e != "" then IO.eprintln s!"listen: {e}"; return 1
   let wrote ← IO.mkRef false
   let t0 ← IO.monoMsNow
   let env : App.Env := {
@@ -166,7 +166,7 @@ def run (path secret host : String) (port : UInt32) : IO UInt32 := do
     nowSecs := do pure (Float.ofNat (← wallMs).toNat / 1000.0),
     uptimeS := do pure (((← IO.monoMsNow) - t0) / 1000) }
   let _ ← armAccept
-  IO.eprintln s!"listening on {host}:{port}; io_uring (Lean event loop)"
+  IO.eprintln s!"listening on {host}:{port}; poll (Lean event loop)"
   loop env { slots := #[] }
   return 0
 

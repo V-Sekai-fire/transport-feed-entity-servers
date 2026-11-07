@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Linux smoke test: build, seed a tiny DB, start the Lean io_uring server, hit it with curl.
+# Linux smoke test: build, seed a tiny DB, start the Lean poll server, hit it with curl.
 set -u
 mkdir -p /w && cd /src && tar cf - --exclude=.lake --exclude=.git . | tar xf - -C /w && cd /w
 bash deploy/scripts/fetch-sqlite.sh
