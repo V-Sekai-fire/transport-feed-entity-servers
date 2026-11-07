@@ -3,7 +3,6 @@
 set -u
 mkdir -p /w && cd /src && tar cf - --exclude=.lake --exclude=.git . | tar xf - -C /w && cd /w
 bash scripts/fetch-sqlite.sh
-bash scripts/fetch-sqlite.sh
 lake build feed-server 2>&1 | grep -E "^error|Build" | head -5
 rm -f /tmp/f.db*
 sqlite3 /tmp/f.db < reference/schema.sql
