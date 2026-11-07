@@ -60,7 +60,12 @@ lean_exe «sqlite-check» where
   root := `Tests.SqliteCheck
   moreLinkArgs := linkLibs
 
-def serveLibs : Array String := if System.Platform.isOSX then #[] else #["-luring", "-lpthread", "-lm"]
+
+def uringA : String :=
+  if System.Platform.target.startsWith "aarch64" then "/usr/lib/aarch64-linux-gnu/liburing.a"
+  else "/usr/lib/x86_64-linux-gnu/liburing.a"
+
+def serveLibs : Array String := if System.Platform.isOSX then #[] else #[uringA, "-lpthread", "-lm"]
 
 lean_exe «feed-server» where
   root := `Tests.Serve
