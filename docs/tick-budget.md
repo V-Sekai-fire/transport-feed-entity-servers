@@ -37,3 +37,15 @@ Without `taskset` the script stops, unless `ALLOW_UNPINNED=1` is set. That is fo
 `taskset` keeps only our own processes on their vCPUs. It does not keep the kernel, interrupts or the runner agent off the unpinned vCPU, so no isolation is claimed. The numbers are loopback only and not a droplet measurement. Eight runs per layout on one runner is a spread, not a distribution across runners.
 
 The original single-process check (`entity_check.c`) is unchanged and still runs unpinned in the first steps of the job.
+
+## Client sweep
+
+`deploy/scripts/client-sweep.sh` runs one `entity_serve` pinned to vCPU 0 and `entity_load` pinned to vCPU 2 (the other physical core), and steps the client count through 1, 4, 16, 64 and 256. 256 is the server's `ET_MAX_USERS`, so no level is over the server's cap. The loader's socket cap now follows `ET_MAX_USERS` too, so the top level is the tick and not the loader.
+
+Per level it runs the planted 6 ms handler 8 times first. Every run must fail the 4 ms budget with the budget message, or the level has no valid p99 and the script fails. Then it runs 8 clean runs and prints p50, p95, p99 and overruns for each. A clean run over the budget is reported, not failed: where the clean p99 crosses 4 ms is the finding.
+
+Bytes per tick are derived from the code, not measured: `XR_PACKET_SIZE` bytes in per client, and one datagram out per client of `min(clients, ET_VIEW)` packets. The script reads the packet size, view and user cap from the sources and prints them with each level.
+
+The tick path holds entities in memory and does not touch the store, so the sweep can answer whether the tick itself binds. It cannot say whether the store binds.
+
+Same caveats as above: loopback only, one runner, no isolation, not a droplet measurement, and eight runs per level is a spread, not a result.

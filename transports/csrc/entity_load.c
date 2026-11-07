@@ -9,7 +9,7 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
-#define MAX_SOCKETS 64
+#define MAX_SOCKETS ET_MAX_USERS
 
 static int64_t now_ns(void) {
   struct timespec t;
