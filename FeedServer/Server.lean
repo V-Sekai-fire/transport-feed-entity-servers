@@ -63,7 +63,12 @@ def flush (st : State) (i : Nat) : IO State := do
     return { st with slots := st.slots.set! i { gen := s.gen } }
   else return st
 
-def handleEntry (env : App.Env) (st : State) (u : Nat) (res : Int) (data : ByteArray) : IO State := do
+/-- A completion record: ud u64, res i32, len u32, cqe flags u32, then `len` data bytes. -/
+def recHeader : Nat := 20
+def cqeFMore : Nat := 2
+def enobufs : Int := -105
+
+def handleEntry (env : App.Env) (st : State) (u : Nat) (res : Int) (flags : Nat) (data : ByteArray) : IO State := do
   let op := u / 2 ^ 56
   let tag := ((u / 2 ^ 32) % 2 ^ 24)
   let slot := u % 2 ^ 32
@@ -79,8 +84,15 @@ def handleEntry (env : App.Env) (st : State) (u : Nat) (res : Int) (data : ByteA
     let s := st.slots[slot]!
     if slot ≥ st.slots.size || s.gen.toNat % 2 ^ 24 != tag || !s.open_ then return st
     if op == opRecv then
+      -- main.rs OP_RECV: the multishot receive re-arms itself while IORING_CQE_F_MORE is set
+      let more := (flags / cqeFMore) % 2 == 1
       if res > 0 then
         let st ← serveSlot env st slot data
+        if !more then
+          let _ ← armRecv slot.toUInt32 s.gen
+        return st
+      else if res == enobufs then
+        -- a burst emptied the buffer ring; the receive ended, so arm it again
         let _ ← armRecv slot.toUInt32 s.gen
         return st
       else
@@ -101,12 +113,13 @@ def handleEntry (env : App.Env) (st : State) (u : Nat) (res : Int) (data : ByteA
     else return st
 
 partial def decode (env : App.Env) (st : State) (b : ByteArray) (o : Nat) : IO State := do
-  if o + 16 > b.size then return st
+  if o + recHeader > b.size then return st
   let u := Sqlite.le b o 8
   let res := sInt32 (Sqlite.le b (o + 8) 4)
   let dl := Sqlite.le b (o + 12) 4
-  let st ← handleEntry env st u res (b.extract (o + 16) (o + 16 + dl))
-  decode env st b (o + 16 + dl)
+  let fl := Sqlite.le b (o + 16) 4
+  let st ← handleEntry env st u res fl (b.extract (o + recHeader) (o + recHeader + dl))
+  decode env st b (o + recHeader + dl)
 
 /-- One pass's end: COMMIT, then answer/close every touched connection. -/
 def endBatch (env : App.Env) (st : State) : IO State := do
