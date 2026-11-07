@@ -217,3 +217,45 @@ Clean p99 median (min to max), in µs:
 
 Server 1 runs on vCPU 2, whose SMT sibling vCPU 3 carries the loader. Server 0's sibling, vCPU 1, is idle. A tail gap that grows with the load fits sharing a core with the loader, and it is only a fit: both runs used one placement. Swapping the servers' vCPUs would separate the core from the process. Until then, read the two-server rows as "the slower server of a pair", and plan on about 0.5 to 0.9 ms of extra p99 for the server that shares a core.
 
+## Send path attribution: the sendto calls against the rest of the tick
+
+`entity_serve ... nosend` runs the full tick and skips the `sendto` calls (a control, not a send path). The `tick-nosend` job ran it at 256, 384, 512 and 640 clients with 8 clean runs and 3 planted 6 ms runs per level. The `tick-wall` job ran `plain` in the same CI run (42412589675). Raw output: `study/send-control-run-1.txt`. Kernel `7.0.0-1017-azure`, 4 vCPUs, server on vCPU 0, loader on vCPU 2.
+
+| Clients | Clean p50 per client, plain (ns) | Clean p50 per client, nosend (ns) | Difference (ns) | Share in the sendto calls | Clean p99 min to max, plain (µs) | Clean p99 min to max, nosend (µs) | Clean over 4 ms, plain | Clean over 4 ms, nosend |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 256 | 6434 | 1478 | 4956 | 77 % | 2300 to 2389 | 437 to 486 | 0 of 8 runs | 0 of 8 runs |
+| 384 | 6342 | 1545 | 4797 | 76 % | 3521 to 3620 | 645 to 711 | 0 of 8 runs | 0 of 8 runs |
+| 512 | 6191 | 1562 | 4629 | 75 % | 4610 to 5300 | 886 to 1731 | 8 of 8 runs | 0 of 8 runs |
+| 640 | 6149 | 1570 | 4579 | 74 % | 5761 to 7212 | 1134 to 1204 | 8 of 8 runs | 0 of 8 runs |
+
+What it shows: about three quarters of the per-client cost is in the `sendto` calls, and the rest (receive plus the copy of a 1200-byte datagram) is about 1500 ns per client. With the sends skipped, no clean run went over 4 ms through 640 clients, so the wall found above is the send path. The planted 6 ms handler was caught in 3 of 3 runs at every nosend level, with the planted p50 5.99 to 6.01 ms above the clean p50, so the nosend levels are valid under the same rule as the sweep above. The 512-client nosend p99 maximum (1731 µs against a minimum of 886 µs) is one run, not a trend.
+
+What it does not show:
+- On loopback the sender runs the receiving socket's work inside `sendto`, so the 74 to 77 % share is an upper bound for a real network card.
+- `plain` and `nosend` ran in different jobs, so on different runner VMs. The ring record above showed a 37 % drift between runs on one runner. The ratio is robust to that and the absolute nanoseconds are not.
+- Under `nosend`, `datagrams_out` counts nothing real.
+- One runner, 8 clean runs per level, no isolation, loopback only.
+
+## Send path: plain against sendmmsg
+
+A `sendmmsg` variant of `entity_serve` (Linux only) sent the tick's datagrams with one `sendmmsg` call per up to 1024 datagrams instead of one `sendto` each. It was trimmed and is not in the tree. The code is commit `3a0a6f6` on branch `dev/sendmmsg` (pull request 33, closed unmerged). The `tick-sendmmsg` job ran the plain sweep and then the sendmmsg sweep back to back in one job, so both ran on the same runner VM. They were not interleaved run by run. Levels 384, 512, 640 and 768 clients, 8 clean runs and 3 planted 6 ms runs per level. CI run 42413745711, kernel `7.0.0-1017-azure`, server on vCPU 0, loader on vCPU 2. Raw output: `study/sendmmsg-run-1.txt`.
+
+| Clients | Clean p50 per client, plain (ns) | Clean p50 per client, sendmmsg (ns) | Gap (ns) | Clean p99 min to max, plain (µs) | Clean p99 min to max, sendmmsg (µs) | Clean over 4 ms, plain | Clean over 4 ms, sendmmsg |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 384 | 4534 | 4562 | +28 | 2458 to 5924 | 2473 to 5398 | 3 of 8 runs | 4 of 8 runs |
+| 512 | 4580 | 4535 | -45 | 3289 to 6422 | 3234 to 5354 | 4 of 8 runs | 4 of 8 runs |
+| 640 | 4544 | 4621 | +77 | 4051 to 7554 | 4109 to 6739 | 8 of 8 runs | 8 of 8 runs |
+| 768 | 4583 | 4657 | +74 | 4762 to 7672 | 4845 to 10180 | 8 of 8 runs | 8 of 8 runs |
+
+What it shows: `sendmmsg` saved nothing. The gap is between -1 % and +2 % of the per-client cost and changes sign, which is inside run-to-run spread. The wall did not move: both variants have clean runs over 4 ms at 384 and 512 clients and all 8 over at 640 and 768. The planted 6 ms handler was caught in 3 of 3 runs at every level in both sweeps. The prediction written in the pull request was a saving of 5 to 15 %, from syscall entry and exit alone. It was wrong in direction of effect, not in size: there is no saving to measure at 8 runs.
+
+What that implies, together with the nosend control above: skipping the sends removes about 75 % of the per-client cost and batching them removes none. So the cost is not the syscall. It is the per-datagram work inside it: the UDP stack and, on loopback, the receiving socket's work.
+
+What it does not show:
+- On loopback the sender pays the receiver's work. On a real network card a batched send may behave differently.
+- The two sweeps ran back to back, not interleaved, so drift inside the job is not spread across the variants.
+- The plain figures here (about 4550 ns per client) sit 28 % below the `tick-wall` job's (about 6300 ns) from another runner VM. Only comparisons within one job are meaningful.
+- Windows has no `sendmmsg`, and the shipped build is win64.
+- One runner, 8 clean runs per level, no isolation.
+
+Under the rule in the trim section above (a variant that wins no axis is trimmed), `sendmmsg` was trimmed. This section and `study/sendmmsg-run-1.txt` are the record.
