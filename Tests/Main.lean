@@ -118,6 +118,29 @@ def main : IO UInt32 := do
   | _ => pure ()
   results := results.push (← check "wrote set after create" (← w2.get))
   results := results.push (← check "endBatch commits and clears" ((← App.endBatch env2) && !(← w2.get)))
+  -- Connection policy
+  let held ← IO.mkRef false
+  let two := "GET /health HTTP/1.1\r\n\r\nGET /feed HTTP/1.1\r\n\r\n"
+  let c1 ← Conn.serve env (held.get) {} (b two)
+  results := results.push (← check "pipelined: two responses" (let s := String.fromUTF8! c1.out; (s.splitOn "HTTP/1.1 200 OK").length == 3 && c1.pending.size == 0 && c1.answered))
+  let c2 ← Conn.serve env (held.get) {} (b "GET /feed HTTP/1.1\r\nHo")
+  results := results.push (← check "partial request is stashed" (c2.out.size == 0 && c2.pending.size > 0 && !c2.answered))
+  let c3 ← Conn.serve env (held.get) c2 (b "st: x\r\n\r\n")
+  results := results.push (← check "partial completed later" (((String.fromUTF8! c3.out).splitOn "{\"posts\":[]}").length == 2 && c3.pending.size == 0))
+  let c4 ← Conn.serve env (held.get) {} (b "NOT HTTP\r\n\r\n")
+  results := results.push (← check "bad request -> 400 + close" (c4.closeAfter && ((String.fromUTF8! c4.out).splitOn "400 Bad Request").length == 2))
+  held.set true
+  let pb := "POST /posts HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}"
+  let c5 ← Conn.serve env (held.get) {} (b ("GET /health HTTP/1.1\r\n\r\n" ++ pb))
+  results := results.push (← check "held write stops the pass" (c5.held && !c5.pending.isEmpty && ((String.fromUTF8! c5.out).splitOn "200 OK").length == 2))
+  held.set false
+  let c6 ← Conn.serve env (held.get) c5 ByteArray.empty
+  results := results.push (← check "released write is answered" (((String.fromUTF8! c6.out).splitOn "401 Unauthorized").length == 2))
+  let c7 ← Conn.serve env (held.get) {} (b two)
+  let before := c7.out.size
+  let rb := Conn.endBatch false c7
+  results := results.push (← check "rollback replaces answers with 500" (rb.closeAfter && rb.out.size < before && ((String.fromUTF8! rb.out).splitOn "500 Internal").length == 2))
+  results := results.push (← check "commit keeps answers" ((Conn.endBatch true c7).out == c7.out))
   -- SQLite record decoding
   results := results.push (← check "varint 1 byte" (Record.varint (ByteArray.mk #[0x7f]) 0 == some (127, 1)))
   results := results.push (← check "varint 2 bytes (128)" (Record.varint (ByteArray.mk #[0x81, 0x00]) 0 == some (128, 2)))
