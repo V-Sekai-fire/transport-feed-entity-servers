@@ -66,7 +66,7 @@ extern_lib libweftfdb pkg := do
   buildStaticLib (pkg.staticLibDir / nameToStaticLib "weftfdb") #[o]
 /-- The FoundationDB client that libweftfdb (the store VFS) calls. -/
 def fdbLibs : Array String :=
-  if System.Platform.isOSX then #["-L/usr/local/lib", "-Wl,-rpath,/usr/local/lib", "-lfdb_c"] else #["-lfdb_c"]
+  if System.Platform.isOSX then #["-L/usr/local/lib", "-Wl,-rpath,/usr/local/lib", "-lfdb_c"] else #["-L/usr/lib", "-lfdb_c"]
 def linkLibs : Array String := fdbLibs ++ if System.Platform.isOSX then #[] else #["-lpthread", "-lm"]
 
 lean_exe «feed-tests» where
