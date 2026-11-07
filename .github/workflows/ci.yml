@@ -48,26 +48,6 @@ jobs:
         if: failure()
         run: |
           gdb -batch -ex run -ex bt -ex "info sharedlibrary" --args .lake/build/bin/sqlite-check "fdb:ci-bt-${GITHUB_RUN_ID}" 2>&1 | tail -40
-  entity-tick:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - name: Build the tick object under strict C99
-        run: |
-          cd transports/csrc
-          gcc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -c entity_tick.c -o /tmp/entity_tick.o
-          gcc -std=gnu99 -Wall -Wextra -Werror -O2 entity_check.c /tmp/entity_tick.o -lpthread -o /tmp/entity_check
-      - name: The tick object has no allocator or Lean runtime symbols
-        run: |
-          if nm /tmp/entity_tick.o | grep -E ' U (malloc|free|lean_)'; then exit 1; fi
-      - name: Loopback check passes inside the 4 ms budget
-        run: /tmp/entity_check
-      - name: Planted slow handler must fail the budget
-        run: |
-          if ENTITY_SLOW_NS=6000000 /tmp/entity_check > /tmp/slow.out; then cat /tmp/slow.out; exit 1; fi
-          cat /tmp/slow.out
-          grep -q 'FAIL: p99 over the 4 ms budget' /tmp/slow.out
   tick-budget:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -80,13 +60,20 @@ jobs:
           lscpu -e
           grep -H . /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
           if [ "$(nproc)" != 4 ]; then echo "expected 4 vCPUs, got $(nproc)"; exit 1; fi
-      - name: Build the loopback check
-        run: cc -std=gnu99 -O2 -Wall -Wextra -Werror -pthread transports/csrc/entity_check.c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_check"
+      - name: Build the tick object under strict C99 and link the loopback check
+        run: |
+          gcc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -c transports/csrc/entity_tick.c -o "$RUNNER_TEMP/entity_tick.o"
+          gcc -std=gnu99 -O2 -Wall -Wextra -Werror -pthread transports/csrc/entity_check.c "$RUNNER_TEMP/entity_tick.o" -o "$RUNNER_TEMP/entity_check"
+      - name: The tick object has no allocator or Lean runtime symbols
+        run: |
+          if nm "$RUNNER_TEMP/entity_tick.o" | grep -E ' U (malloc|free|lean_)'; then exit 1; fi
       - name: Planted 6 ms handler must fail the 4 ms budget
         run: |
           for i in 1 2 3 4 5 6 7 8; do
-            if ENTITY_SLOW_NS=6000000 "$RUNNER_TEMP/entity_check"; then echo "run $i: planted defect not caught"; exit 1; fi
+            if ENTITY_SLOW_NS=6000000 "$RUNNER_TEMP/entity_check" > "$RUNNER_TEMP/slow.out"; then cat "$RUNNER_TEMP/slow.out"; echo "run $i: planted defect not caught"; exit 1; fi
+            grep -q 'FAIL: p99 over the 4 ms budget' "$RUNNER_TEMP/slow.out" || { cat "$RUNNER_TEMP/slow.out"; echo "run $i: failed for another reason"; exit 1; }
           done
+          cat "$RUNNER_TEMP/slow.out"
       - name: Clean run stays inside the budget
         run: |
           for i in 1 2 3 4 5 6 7 8; do "$RUNNER_TEMP/entity_check" || exit 1; done
