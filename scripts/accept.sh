@@ -12,4 +12,4 @@ cd /w
 SQLITE_PATH=/tmp/a.db JWT_SECRET=twelve-dollar-challenge HOST=127.0.0.1 PORT=3000 .lake/build/bin/feed-server &
 sleep 3
 
-BASE_URL=http://127.0.0.1:3000 bash test/test.sh http://127.0.0.1:3000 2>&1 | tail -25
+cd /c && bash test/test.sh http://127.0.0.1:3000 2>&1 | tail -25
