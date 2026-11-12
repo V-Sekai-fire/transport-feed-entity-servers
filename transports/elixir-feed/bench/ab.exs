@@ -145,6 +145,8 @@ defmodule AB do
   defp command(cfg, "rust"), do: {rust_bin(cfg), []}
   # The repo's Lean 4 port (lake build feed-server): poll(2) loop, shim.c B-tree reads.
   defp command(cfg, "lean"), do: {Path.join(cfg.root, ".lake/build/bin/feed-server"), []}
+  # The challenge's lean-derive-hargup entry, unmodified: C generated from a Lean spec, io_uring runtime.
+  defp command(cfg, "hargup"), do: {Path.join(cfg.chal, "submissions/lean-derive-hargup/bin/server"), []}
 
   defp command(_cfg, "elixir") do
     {System.find_executable("elixir"),

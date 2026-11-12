@@ -108,6 +108,11 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Build the Lean server
         run: lake build feed-server
+      # Unmodified challenge entry; its build.sh expects Lean 4.35.0 at /opt/lean-4.35.0.
+      - name: Build lean-derive-hargup (report only)
+        run: |
+          sudo ln -sfn "$(lean --print-prefix)" /opt/lean-4.35.0
+          bash challenge/submissions/lean-derive-hargup/build.sh
       - name: Build the Elixir server (warnings are errors)
         working-directory: transports/elixir-feed
         env:
@@ -121,7 +126,7 @@ jobs:
         working-directory: transports/elixir-feed
         env:
           REPS: ${{ inputs.reps || '3' }}
-          SERVERS: rust,elixir,lean
+          SERVERS: rust,elixir,lean,hargup
           RATES: ${{ inputs.rate && format('600,{0}', inputs.rate) || '600,4000' }}
           MAX_RATIO: ${{ inputs.max_ratio || '' }}
           SAT_VUS: "128"
