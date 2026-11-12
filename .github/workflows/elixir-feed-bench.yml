@@ -6,15 +6,25 @@ name: elixir-feed-bench
 on:
   pull_request:
     paths:
-      - transports/elixir-feed/**
+      - transports/**
+      - entities/**
+      - repositories/**
       - datasources/reference/**
+      - datasources/csrc/**
+      - lakefile.lean
+      - lean-toolchain
       - deploy/scripts/fetch-sqlite.sh
       - .github/workflows/elixir-feed-bench.yml
   push:
     branches: [main]
     paths:
-      - transports/elixir-feed/**
+      - transports/**
+      - entities/**
+      - repositories/**
       - datasources/reference/**
+      - datasources/csrc/**
+      - lakefile.lean
+      - lean-toolchain
       - deploy/scripts/fetch-sqlite.sh
       - .github/workflows/elixir-feed-bench.yml
   workflow_dispatch:
@@ -23,8 +33,8 @@ on:
         description: Repetitions of each rate/sat run (server order alternates)
         default: "3"
       rate:
-        description: Matched-rate load, user iterations per second (about 2.2 requests each)
-        default: "600"
+        description: Second matched-rate load beside 600, user iterations per second (about 2.2 requests each)
+        default: "4000"
       max_ratio:
         description: Fail if Elixir/Rust CPU us/req exceeds this (empty = report only)
         default: ""

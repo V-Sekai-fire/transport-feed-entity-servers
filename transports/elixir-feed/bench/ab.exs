@@ -54,7 +54,8 @@ defmodule AB do
       chal: chal,
       servers: "SERVERS" |> System.get_env("rust,elixir,lean") |> String.split(",", trim: true),
       reps: int_env("REPS", 3),
-      rates: "RATES" |> System.get_env("600,4000") |> String.split(",", trim: true) |> Enum.map(&String.to_integer/1),
+      rates: "RATES" |> System.get_env("600,4000") |> String.split(",", trim: true) |> positive_ints([600, 4000]),
+      gated: "GATED" |> System.get_env("rust,elixir") |> String.split(",", trim: true),
       sat_vus: "SAT_VUS" |> System.get_env("128") |> String.split(",", trim: true),
       dur: System.get_env("DUR", "20s"),
       load_vus: System.get_env("LOAD_VUS", "2000"),
@@ -80,6 +81,11 @@ defmodule AB do
       {n, ""} when n > 0 -> n
       _ -> default
     end
+  end
+
+  defp positive_ints(parts, default) do
+    ns = for p <- parts, {n, ""} <- [Integer.parse(p)], n > 0, uniq: true, do: n
+    if ns == [], do: default, else: ns
   end
 
   defp float_env(name) do
@@ -357,7 +363,8 @@ defmodule AB do
 
     gates = [
       {"every run completed", errors == [], "#{length(errors)} run(s) failed to complete"},
-      {"under 1 % failed requests", Enum.all?(oks, &(&1.failed < 0.01)), "a run had >= 1 % failed requests"},
+      {"under 1 % failed requests (#{Enum.join(cfg.gated, ", ")}; others report only)",
+       Enum.all?(oks, &(&1.server not in cfg.gated or &1.failed < 0.01)), "a gated run had >= 1 % failed requests"},
       {"Elixir/Rust CPU µs/req at #{top} iterations/s",
        cfg.max_ratio == nil or (is_number(ratio) and ratio <= cfg.max_ratio),
        "ratio #{fmt(ratio, 2)} over MAX_RATIO #{fmt(cfg.max_ratio, 2)}"}
@@ -386,7 +393,8 @@ defmodule AB do
   defp median_ratio(oks, server, rate) do
     ratios =
       oks
-      |> Enum.filter(&(&1.kind == "rate" and &1.param == rate and is_number(&1.us_per_req)))
+      # A run that dropped iterations did not hold the rate, so its CPU per request is not comparable.
+      |> Enum.filter(&(&1.kind == "rate" and &1.param == rate and is_number(&1.us_per_req) and &1.dropped == 0))
       |> Enum.group_by(& &1.rep)
       |> Enum.flat_map(fn {_rep, rs} ->
         case {Enum.find(rs, &(&1.server == server)), Enum.find(rs, &(&1.server == "rust"))} do
