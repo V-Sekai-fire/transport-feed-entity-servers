@@ -110,6 +110,7 @@ jobs:
         run: lake build feed-server
       # Unmodified challenge entry; its build.sh expects Lean 4.35.0 at /opt/lean-4.35.0.
       - name: Build lean-derive-hargup (report only)
+        continue-on-error: true
         run: |
           sudo ln -sfn "$(lean --print-prefix)" /opt/lean-4.35.0
           bash challenge/submissions/lean-derive-hargup/build.sh

@@ -29,8 +29,8 @@ defmodule AB do
     cfg = config(Path.expand(root), Path.expand(chal))
     IO.puts("cpus=#{cfg.ncpu} server=0 load=#{cfg.load_cpus} kernel=#{cfg.kernel} cpu=#{cfg.cpu_model}")
 
-    with :ok <- preflight(cfg),
-         :ok <- conformance(cfg) do
+    with {:ok, cfg} <- preflight(cfg),
+         {:ok, cfg} <- conformance(cfg) do
       finish(cfg, bench(cfg))
     else
       {:error, reason} ->
@@ -56,6 +56,7 @@ defmodule AB do
       reps: int_env("REPS", 3),
       rates: "RATES" |> System.get_env("600,4000") |> String.split(",", trim: true) |> positive_ints([600, 4000]),
       gated: "GATED" |> System.get_env("rust,elixir") |> String.split(",", trim: true),
+      skipped: [],
       sat_vus: "SAT_VUS" |> System.get_env("128") |> String.split(",", trim: true),
       dur: System.get_env("DUR", "20s"),
       load_vus: System.get_env("LOAD_VUS", "2000"),
@@ -126,16 +127,23 @@ defmodule AB do
       for exe <- ["taskset", "k6", "curl", "bash", "elixir", "kill"], System.find_executable(exe) == nil, do: exe
 
     unbuilt = for s <- cfg.servers, s != "elixir", not File.exists?(elem(command(cfg, s), 0)), do: s
+    {must, may} = Enum.split_with(unbuilt, &(&1 in cfg.gated))
 
     cond do
       missing != [] -> {:error, {:missing_tools, missing}}
       cfg.ncpu < 2 -> {:error, {:need_two_cpus, cfg.ncpu}}
       "rust" not in cfg.servers -> {:error, :rust_is_the_baseline_and_must_run}
-      unbuilt != [] -> {:error, {:not_built, unbuilt}}
+      must != [] -> {:error, {:not_built, must}}
       not File.exists?(Path.join(cfg.chal, "seed/feed.db")) -> {:error, :seed_missing}
       not File.exists?(Path.join(cfg.chal, "seed/tokens.json")) -> {:error, :tokens_missing}
-      true -> :ok
+      true -> {:ok, Enum.reduce(may, cfg, &skip(&2, &1, "not built"))}
     end
+  end
+
+  # A report-only server that cannot run is dropped with its reason; the report lists it.
+  defp skip(cfg, server, why) do
+    IO.puts("skipped #{server}: #{why}")
+    %{cfg | servers: List.delete(cfg.servers, server), skipped: cfg.skipped ++ [{server, why}]}
   end
 
   defp rust_bin(cfg), do: Path.join(cfg.root, "datasources/reference/target/release/feed-server")
@@ -237,7 +245,9 @@ defmodule AB do
   # ---- conformance ---------------------------------------------------------------------------
 
   defp conformance(cfg) do
-    Enum.reduce_while(cfg.servers, :ok, fn server, :ok ->
+    Enum.reduce_while(cfg.servers, {:ok, cfg}, fn server, {:ok, acc} ->
+      gated = server in cfg.gated
+
       case start(cfg, server) do
         {:ok, h} ->
           {out, _code} = System.cmd("bash", ["test/test.sh", @base], cd: cfg.chal, stderr_to_stdout: true)
@@ -245,13 +255,17 @@ defmodule AB do
           last = out |> String.split("\n", trim: true) |> List.last()
           IO.puts("conformance #{server}: #{last}")
 
-          case last == "passed=42 failed=0" do
-            true -> {:cont, :ok}
-            false -> IO.puts(out) && {:halt, {:error, {:conformance, server, last}}}
+          cond do
+            last == "passed=42 failed=0" -> {:cont, {:ok, acc}}
+            gated -> IO.puts(out) && {:halt, {:error, {:conformance, server, last}}}
+            true -> {:cont, {:ok, skip(acc, server, "conformance #{last}")}}
           end
 
-        {:error, reason} ->
+        {:error, reason} when gated ->
           {:halt, {:error, reason}}
+
+        {:error, reason} ->
+          {:cont, {:ok, skip(acc, server, "did not start: #{inspect(reason)}")}}
       end
     end)
   end
@@ -359,12 +373,13 @@ defmodule AB do
   defp finish(cfg, results) do
     oks = for {:ok, r} <- results, do: r
     errors = for {:error, e} <- results, do: e
+    gated_errors = Enum.filter(errors, &(&1.server in cfg.gated))
     top = Enum.max(cfg.rates)
     ratios = for s <- cfg.servers, s != "rust", r <- cfg.rates, into: %{}, do: {{s, r}, median_ratio(oks, s, r)}
     ratio = Map.get(ratios, {"elixir", top})
 
     gates = [
-      {"every run completed", errors == [], "#{length(errors)} run(s) failed to complete"},
+      {"every gated run completed", gated_errors == [], "#{length(gated_errors)} gated run(s) failed to complete"},
       {"under 1 % failed requests (#{Enum.join(cfg.gated, ", ")}; others report only)",
        Enum.all?(oks, &(&1.server not in cfg.gated or &1.failed < 0.01)), "a gated run had >= 1 % failed requests"},
       {"Elixir/Rust CPU µs/req at #{top} iterations/s",
@@ -446,8 +461,9 @@ defmodule AB do
       end)
 
     errs = Enum.map(errors, fn e -> "- run error: #{inspect(e)}\n" end)
+    skips = Enum.map(cfg.skipped, fn {s, why} -> "- skipped #{s} (report only): #{why}\n" end)
     gate_lines = Enum.map(gates, fn {name, ok, why} -> "- #{if ok, do: "pass", else: "FAIL"}: #{name}#{if ok, do: "", else: " (#{why})"}\n" end)
-    IO.iodata_to_binary([head, rows, "\n", errs, gate_lines, "\n"])
+    IO.iodata_to_binary([head, rows, "\n", skips, errs, gate_lines, "\n"])
   end
 
   defp fmt(x, d) when is_number(x), do: :erlang.float_to_binary(x * 1.0, decimals: d)
