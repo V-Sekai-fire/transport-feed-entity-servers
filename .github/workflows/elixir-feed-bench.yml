@@ -36,6 +36,7 @@ concurrency:
 env:
   CHALLENGE_SHA: 39cd79b2a2ce9e01f99352c1fe8209cb2afc80c1
   K6_VERSION: v2.3.0
+  FDB_VERSION: "7.3.76"
 jobs:
   bench:
     runs-on: ubuntu-24.04
@@ -87,6 +88,16 @@ jobs:
       # Not cached: both builds use -march=native, and a build restored onto another runner CPU can SIGILL.
       - name: Build the Rust leader
         run: bash datasources/reference/build.sh
+      # The Lean port (transports/Serve.lean) links -lfdb_c in every build, so the FDB client package is
+      # needed even though the bench opens plain SQLite files.
+      - name: Install the FoundationDB client and Lean
+        run: |
+          curl -fsSL -o /tmp/fdb-clients.deb "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb"
+          sudo -S -p '' dpkg -i /tmp/fdb-clients.deb
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain "$(cat lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Build the Lean server
+        run: lake build feed-server
       - name: Build the Elixir server (warnings are errors)
         working-directory: transports/elixir-feed
         env:
@@ -100,7 +111,8 @@ jobs:
         working-directory: transports/elixir-feed
         env:
           REPS: ${{ inputs.reps || '3' }}
-          RATE: ${{ inputs.rate || '600' }}
+          SERVERS: rust,elixir,lean
+          RATES: ${{ inputs.rate && format('600,{0}', inputs.rate) || '600,4000' }}
           MAX_RATIO: ${{ inputs.max_ratio || '' }}
           SAT_VUS: "128"
           DUR: 20s

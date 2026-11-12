@@ -15,9 +15,10 @@
 #      median Elixir/Rust CPU µs/req ratio at the matched rate is at most MAX_RATIO.
 #
 # This compares Elixir with Rust on the same runner; it is never a leaderboard number.
-# Env: REPS (3), RATE (600), SAT_VUS ("128"), DUR (20s), LOAD_VUS (2000), LOAD_HOLD (20s),
+# Env: SERVERS ("rust,elixir,lean"; rust is the baseline), REPS (3), RATES ("600,4000"), SAT_VUS ("128"), DUR (20s), LOAD_VUS (2000), LOAD_HOLD (20s),
 #      MAX_RATIO (unset = report only), RESULTS (JSON path), GITHUB_STEP_SUMMARY.
-# Never raises on an expected failure: every step returns {:ok, _} | {:error, reason}.
+# Expected failures (a server that does not start, a missing summary) return {:error, reason} and end
+# in exit 1. A k6 summary that is not JSON makes :json.decode raise, which also exits non-zero.
 
 defmodule AB do
   @secret "twelve-dollar-challenge"
@@ -51,9 +52,9 @@ defmodule AB do
     %{
       root: root,
       chal: chal,
-      servers: ["rust", "elixir"],
+      servers: "SERVERS" |> System.get_env("rust,elixir,lean") |> String.split(",", trim: true),
       reps: int_env("REPS", 3),
-      rate: int_env("RATE", 600),
+      rates: "RATES" |> System.get_env("600,4000") |> String.split(",", trim: true) |> Enum.map(&String.to_integer/1),
       sat_vus: "SAT_VUS" |> System.get_env("128") |> String.split(",", trim: true),
       dur: System.get_env("DUR", "20s"),
       load_vus: System.get_env("LOAD_VUS", "2000"),
@@ -118,10 +119,13 @@ defmodule AB do
     missing =
       for exe <- ["taskset", "k6", "curl", "bash", "elixir", "kill"], System.find_executable(exe) == nil, do: exe
 
+    unbuilt = for s <- cfg.servers, s != "elixir", not File.exists?(elem(command(cfg, s), 0)), do: s
+
     cond do
       missing != [] -> {:error, {:missing_tools, missing}}
       cfg.ncpu < 2 -> {:error, {:need_two_cpus, cfg.ncpu}}
-      not File.exists?(rust_bin(cfg)) -> {:error, {:leader_not_built, rust_bin(cfg)}}
+      "rust" not in cfg.servers -> {:error, :rust_is_the_baseline_and_must_run}
+      unbuilt != [] -> {:error, {:not_built, unbuilt}}
       not File.exists?(Path.join(cfg.chal, "seed/feed.db")) -> {:error, :seed_missing}
       not File.exists?(Path.join(cfg.chal, "seed/tokens.json")) -> {:error, :tokens_missing}
       true -> :ok
@@ -133,6 +137,8 @@ defmodule AB do
   # ---- server lifecycle ----------------------------------------------------------------------
 
   defp command(cfg, "rust"), do: {rust_bin(cfg), []}
+  # The repo's Lean 4 port (lake build feed-server): poll(2) loop, shim.c B-tree reads.
+  defp command(cfg, "lean"), do: {Path.join(cfg.root, ".lake/build/bin/feed-server"), []}
 
   defp command(_cfg, "elixir") do
     {System.find_executable("elixir"),
@@ -251,7 +257,7 @@ defmodule AB do
     repeated =
       for rep <- 1..cfg.reps,
           {kind, param, args} <-
-            [{"rate", cfg.rate, ["-e", "MODE=rate", "-e", "RATE=#{cfg.rate}", "-e", "VUS=256", sat_js]}] ++
+            for(r <- cfg.rates, do: {"rate", r, ["-e", "MODE=rate", "-e", "RATE=#{r}", "-e", "VUS=256", sat_js]}) ++
               for(v <- cfg.sat_vus, do: {"sat", v, ["-e", "MODE=sat", "-e", "VUS=#{v}", sat_js]}),
           server <- order(cfg.servers, rep) do
         {rep, kind, param, server, ["-e", "DURATION=#{cfg.dur}" | args]}
@@ -330,6 +336,8 @@ defmodule AB do
          p95: get_in(m, ["http_req_duration", "values", "p(95)"]),
          p99: get_in(m, ["http_req_duration", "values", "p(99)"]),
          failed: get_in(m, ["http_req_failed", "values", "rate"]) || 0.0,
+         # Open-loop iterations k6 could not start: the server did not hold the rate.
+         dropped: get_in(m, ["dropped_iterations", "values", "count"]) || 0,
          cpu_pct: if(cpu_s, do: cpu_s * 100_000 / max(wall_ms, 1), else: nil),
          us_per_req: if(cpu_s, do: cpu_s * 1.0e6 / reqs, else: nil)
        })}
@@ -343,17 +351,19 @@ defmodule AB do
   defp finish(cfg, results) do
     oks = for {:ok, r} <- results, do: r
     errors = for {:error, e} <- results, do: e
-    ratio = median_ratio(oks)
+    top = Enum.max(cfg.rates)
+    ratios = for s <- cfg.servers, s != "rust", r <- cfg.rates, into: %{}, do: {{s, r}, median_ratio(oks, s, r)}
+    ratio = Map.get(ratios, {"elixir", top})
 
     gates = [
       {"every run completed", errors == [], "#{length(errors)} run(s) failed to complete"},
       {"under 1 % failed requests", Enum.all?(oks, &(&1.failed < 0.01)), "a run had >= 1 % failed requests"},
-      {"Elixir/Rust CPU µs/req at matched rate",
+      {"Elixir/Rust CPU µs/req at #{top} iterations/s",
        cfg.max_ratio == nil or (is_number(ratio) and ratio <= cfg.max_ratio),
        "ratio #{fmt(ratio, 2)} over MAX_RATIO #{fmt(cfg.max_ratio, 2)}"}
     ]
 
-    text = report(cfg, oks, errors, ratio, gates)
+    text = report(cfg, oks, errors, ratios, gates)
     IO.puts(text)
 
     case System.get_env("GITHUB_STEP_SUMMARY") do
@@ -362,7 +372,8 @@ defmodule AB do
     end
 
     meta = %{kernel: cfg.kernel, cpu_model: cfg.cpu_model, ncpu: cfg.ncpu, sha: System.get_env("GITHUB_SHA", ""),
-             rate: cfg.rate, reps: cfg.reps, ratio: ratio, max_ratio: cfg.max_ratio}
+             rates: cfg.rates, reps: cfg.reps, max_ratio: cfg.max_ratio,
+             ratios: for({{s, r}, v} <- ratios, do: %{server: s, rate: r, ratio_to_rust: v})}
     _ = File.write(cfg.results, :json.encode(%{meta: meta, runs: oks, errors: errors}))
 
     case Enum.all?(gates, fn {_n, ok, _why} -> ok end) do
@@ -371,14 +382,14 @@ defmodule AB do
     end
   end
 
-  # Median over reps of (elixir µs/req) / (rust µs/req) in the matched-rate runs.
-  defp median_ratio(oks) do
+  # Median over reps of (server µs/req) / (rust µs/req) in the matched-rate runs at one rate.
+  defp median_ratio(oks, server, rate) do
     ratios =
       oks
-      |> Enum.filter(&(&1.kind == "rate" and is_number(&1.us_per_req)))
+      |> Enum.filter(&(&1.kind == "rate" and &1.param == rate and is_number(&1.us_per_req)))
       |> Enum.group_by(& &1.rep)
       |> Enum.flat_map(fn {_rep, rs} ->
-        case {Enum.find(rs, &(&1.server == "elixir")), Enum.find(rs, &(&1.server == "rust"))} do
+        case {Enum.find(rs, &(&1.server == server)), Enum.find(rs, &(&1.server == "rust"))} do
           {%{us_per_req: e}, %{us_per_req: r}} when r > 0 -> [e / r]
           {_e, _r} -> []
         end
@@ -391,23 +402,35 @@ defmodule AB do
     end
   end
 
-  defp report(cfg, oks, errors, ratio, gates) do
+  defp report(cfg, oks, errors, ratios, gates) do
+    ratio_rows =
+      for {{s, r}, v} <- Enum.sort(ratios), do: "| #{s} | #{r} | #{fmt(v, 2)}× |\n"
+
     head = """
-    ## Elixir feed server vs the Rust leader (same runner)
+    ## Feed servers vs the Rust leader (same runner)
 
     `#{cfg.cpu_model}`, #{cfg.ncpu} vCPU, kernel `#{cfg.kernel}`. Server pinned to CPU 0, k6 on CPUs #{cfg.load_cpus}.
-    Same-runner comparison only; never a leaderboard number. Both servers passed test/test.sh 42/42 first.
+    Same-runner comparison only; never a leaderboard number. Every server passed test/test.sh 42/42 first.
 
-    **Elixir/Rust server CPU per request at #{cfg.rate} iterations/s (median of #{cfg.reps}): #{fmt(ratio, 2)}×** \
-    (parity = 1.00#{if cfg.max_ratio, do: ", gate ≤ #{fmt(cfg.max_ratio, 2)}", else: ", no gate set"})
+    Server CPU per request relative to Rust at a matched rate (median of #{cfg.reps}; parity = 1.00\
+    #{if cfg.max_ratio, do: "; Elixir gate ≤ #{fmt(cfg.max_ratio, 2)} at #{Enum.max(cfg.rates)}", else: "; no gate set"}):
 
+    | server | iterations/s | CPU µs/req ÷ Rust |
+    |---|---|---|
+    #{ratio_rows}
     | rep | load | param | server | req/s | p95 ms | p99 ms | failed % | server CPU % | CPU µs/req | note |
     |---|---|---|---|---|---|---|---|---|---|---|
     """
 
     rows =
       Enum.map(oks, fn r ->
-        note = if r.kind == "sat" and is_number(r.cpu_pct) and r.cpu_pct < 90, do: "loadgen-bound", else: ""
+        note =
+          cond do
+            r.kind == "rate" and r.dropped > 0 -> "did not hold the rate (#{r.dropped} dropped)"
+            r.kind == "sat" and is_number(r.cpu_pct) and r.cpu_pct < 90 -> "loadgen-bound"
+            true -> ""
+          end
+
         "| #{r.rep} | #{r.kind} | #{r.param} | #{r.server} | #{fmt(r.rps, 0)} | #{fmt(r.p95, 2)} | #{fmt(r.p99, 2)} | " <>
           "#{fmt(r.failed * 100, 2)} | #{fmt(r.cpu_pct, 0)} | #{fmt(r.us_per_req, 1)} | #{note} |\n"
       end)
