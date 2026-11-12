@@ -16,10 +16,10 @@ pinned() {
 cpus_of() { sed -n 's/.* cpus=\([^ ]*\).*/\1/p' "$1" | head -1; }
 bad() { echo "FAIL: $*"; fail=1; }
 
+. "$(dirname "$0")/cpu-pairs.sh"
+SIB0=1 OC=2 SIBOC=3
 if [ "$PINNED" = 1 ]; then
-  s0=$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)
-  s2=$(cat /sys/devices/system/cpu/cpu2/topology/thread_siblings_list)
-  [ "$s0" = 0-1 ] && [ "$s2" = 2-3 ] || { echo "FAIL: the layouts assume siblings 0-1 and 2-3, found $s0 and $s2"; exit 1; }
+  cpu_pairs || exit 1
 elif [ "${ALLOW_UNPINNED:-0}" != 1 ]; then
   echo "FAIL: taskset is missing; set ALLOW_UNPINNED=1 to run without pinning"; exit 1
 fi
@@ -58,10 +58,10 @@ layout() {
 
 if [ "$PINNED" = 1 ]; then
   pinned 0 "$BIN/entity_serve" C 47330 2 0 > "$T/c.out"
-  [ "$(cpus_of "$T/c.out")" != 1 ] || bad "control: a server pinned to 0 read back as 1"
+  [ "$(cpus_of "$T/c.out")" != "$SIB0" ] || bad "control: a server pinned to 0 read back as $SIB0"
   echo "control: a server pinned to 0 reads back as $(cpus_of "$T/c.out")"
 fi
-layout A-siblings-share 0 1 2
-layout B-siblings-split 0 2 1
+layout A-siblings-share 0 "$SIB0" "$OC"
+layout B-siblings-split 0 "$OC" "$SIB0"
 [ "$fail" = 0 ] && echo "layouts: ok" || echo "layouts: failing"
 exit "$fail"

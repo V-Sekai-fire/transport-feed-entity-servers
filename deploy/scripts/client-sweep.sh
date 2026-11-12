@@ -16,17 +16,6 @@ BACKEND=${BACKEND:-plain} # plain, or nosend: the same tick with the sendto call
 LEVELS=${LEVELS:-"1 4 16 64 256"}
 SERVERS=${SERVERS:-1}
 TICKS=192 SENDS=160 PORT=47321 MIN_DELTA_NS=5000000
-# SERVER_CPUS="2 0" swaps the servers' vCPUs; ENTITY_LOAD_ORDER=interleave makes the loader alternate between the servers in each pass
-read -r -a SVC <<< "${SERVER_CPUS:-0 2}"
-case "$SERVERS" in
-  1) LD=${LD:-2} ;;
-  2) LD=${LD:-3} ;;
-  *) echo "FAIL: SERVERS must be 1 or 2, got $SERVERS"; exit 1 ;;
-esac
-LAST=$((SERVERS - 1))
-for ((j = 0; j < SERVERS; j++)); do
-  [ "$LD" != "${SVC[$j]}" ] || { echo "FAIL: the loader and server $j are both on vCPU $LD"; exit 1; }
-done
 HERE=$(cd "$(dirname "$0")/../.." && pwd)
 PKT=$(sed -n 's/^#define XR_PACKET_SIZE \([0-9]*\).*/\1/p' "$HERE/datasources/entity-packet/xr_grid_entity_packet.h")
 VIEW=$(sed -n 's/^#define ET_VIEW \([0-9]*\).*/\1/p' "$HERE/transports/csrc/entity_tick.h")
@@ -47,13 +36,25 @@ bad() { echo "FAIL: $*"; fail=1; }
 ulimit -n "$(ulimit -Hn)" 2>/dev/null
 echo "open files limit $(ulimit -n) descriptors; udp receive buffer default $(cat /proc/sys/net/core/rmem_default 2>/dev/null || echo n/a) bytes, max $(cat /proc/sys/net/core/rmem_max 2>/dev/null || echo n/a) bytes; ephemeral ports $(cat /proc/sys/net/ipv4/ip_local_port_range 2>/dev/null || echo n/a)"
 
+. "$(dirname "$0")/cpu-pairs.sh"
+SIB0=1 OC=2 SIBOC=3
 if [ "$PINNED" = 1 ]; then
-  s0=$(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)
-  s2=$(cat /sys/devices/system/cpu/cpu2/topology/thread_siblings_list)
-  [ "$s0" = 0-1 ] && [ "$s2" = 2-3 ] || { echo "FAIL: the sweep assumes siblings 0-1 and 2-3, found $s0 and $s2"; exit 1; }
+  cpu_pairs || exit 1
 elif [ "${ALLOW_UNPINNED:-0}" != 1 ]; then
   echo "FAIL: taskset is missing; set ALLOW_UNPINNED=1 to run without pinning"; exit 1
 fi
+# Servers on vCPU 0 and OC (separate physical cores); the loader on OC, or on OC's sibling with two servers.
+# SERVER_CPUS="<OC> 0" swaps the servers' vCPUs; ENTITY_LOAD_ORDER=interleave makes the loader alternate between the servers in each pass
+read -r -a SVC <<< "${SERVER_CPUS:-0 $OC}"
+case "$SERVERS" in
+  1) LD=${LD:-$OC} ;;
+  2) LD=${LD:-$SIBOC} ;;
+  *) echo "FAIL: SERVERS must be 1 or 2, got $SERVERS"; exit 1 ;;
+esac
+LAST=$((SERVERS - 1))
+for ((j = 0; j < SERVERS; j++)); do
+  [ "$LD" != "${SVC[$j]}" ] || { echo "FAIL: the loader and server $j are both on vCPU $LD"; exit 1; }
+done
 
 once() {
   local n=$1 slow=$2 per=$(($1 / SERVERS)) j sl ports=""
@@ -84,7 +85,7 @@ line() {
 
 if [ "$PINNED" = 1 ]; then
   pinned 0 "$BIN/entity_serve" C 47330 2 0 > "$T/c.out"
-  [ "$(cpus_of "$T/c.out")" != 2 ] || bad "control: a server pinned to 0 read back as 2"
+  [ "$(cpus_of "$T/c.out")" != "$OC" ] || bad "control: a server pinned to 0 read back as $OC"
   echo "control: a server pinned to 0 reads back as $(cpus_of "$T/c.out")"
 fi
 echo "packet $PKT bytes, view $VIEW entities, user cap $MAXU clients, $SERVERS server(s) on vCPU ${SVC[*]:0:$SERVERS}, loader on $LD"
