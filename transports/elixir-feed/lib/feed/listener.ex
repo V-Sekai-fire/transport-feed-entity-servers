@@ -12,7 +12,7 @@ defmodule Feed.Listener do
   @impl true
   def init({ip, port}) do
     opts = [:binary, packet: :raw, active: false, reuseaddr: true, backlog: 4096, nodelay: true,
-            ip: ip, recbuf: 65536, sndbuf: 65536]
+            ip: ip]
 
     case :gen_tcp.listen(port, opts) do
       {:ok, ls} ->
