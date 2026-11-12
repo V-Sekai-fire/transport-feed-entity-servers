@@ -4,6 +4,7 @@ defmodule Feed.Router do
   binaries; the atom :error from the NIF becomes a canned 500.
   """
 
+  @busy_tries 500
   @ise "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: 33\r\n\r\n{\"error\":\"internal server error\"}"
 
   def route("GET", "/feed", _auth, _body), do: ok(Feed.Nif.feed())
@@ -28,7 +29,7 @@ defmodule Feed.Router do
 
   def route("POST", "/posts", auth, body) do
     case Feed.Jwt.verify(auth) do
-      {:ok, uid, user} -> ok(Feed.Nif.create(uid, user, body))
+      {:ok, uid, user} -> write(fn -> Feed.Nif.create(uid, user, body) end, @busy_tries)
       {:error, msg} -> error(401, msg)
     end
   end
@@ -56,7 +57,7 @@ defmodule Feed.Router do
     case Feed.Jwt.verify(auth) do
       {:ok, uid, _user} ->
         case post_id(id) do
-          {:ok, n} -> ok(Feed.Nif.like(uid, n))
+          {:ok, n} -> write(fn -> Feed.Nif.like(uid, n) end, @busy_tries)
           :error -> error(400, "invalid post id")
         end
 
@@ -81,6 +82,23 @@ defmodule Feed.Router do
 
   defp ok(:error), do: @ise
   defp ok(bin), do: bin
+
+  # A write NIF answers :busy while a WAL checkpoint holds writes (at most 250 ms). Wait 1 ms
+  # without spinning, so the checkpoint thread gets the CPU, and give up as a 500 after the bound.
+  defp write(_f, 0), do: @ise
+
+  defp write(f, n) do
+    case f.() do
+      :busy ->
+        receive do
+        after
+          1 -> write(f, n - 1)
+        end
+
+      other ->
+        ok(other)
+    end
+  end
 
   def error(status, msg) do
     body = ["{\"error\":\"", msg, "\"}"]

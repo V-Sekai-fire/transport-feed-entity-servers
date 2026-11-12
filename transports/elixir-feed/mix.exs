@@ -50,7 +50,7 @@ defmodule Mix.Tasks.Compile.FeedNif do
        opt ++ ["-fPIC", "-w", "-c", "-I", vendor] ++ defs ++ [Path.join(vendor, "sqlite3.c"), "-o", obj]},
       {stale?(src, out) or stale?(obj, out),
        opt ++ ["-fPIC", "-std=c11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Wpedantic", "-Werror",
-        "-I", vendor, "-I", erts] ++ defs ++ so_flags ++ [src, obj, "-o", out, "-lpthread", "-lm"]}
+        "-I", vendor, "-I", erts] ++ defs ++ test_flags() ++ so_flags ++ [src, obj, "-o", out, "-lpthread", "-lm"]}
     ]
 
     case File.mkdir_p(Path.join(root, "priv")) do
@@ -58,6 +58,9 @@ defmodule Mix.Tasks.Compile.FeedNif do
       {:error, reason} -> {:error, [diag("cannot create priv/: #{inspect(reason)}")]}
     end
   end
+
+  # Test builds only, e.g. FEED_NIF_CFLAGS="-DFEED_CKPT_FRAMES=16"; remove priv/ first, the stale check ignores it.
+  defp test_flags, do: "FEED_NIF_CFLAGS" |> System.get_env("") |> String.split(" ", trim: true)
 
   defp build(steps) do
     Enum.reduce_while(steps, {:ok, []}, fn {needed, args}, acc ->

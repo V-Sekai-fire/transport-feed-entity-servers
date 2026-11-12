@@ -54,6 +54,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <time.h>
 #include <unistd.h>
 #ifdef __linux__
 #include <sys/syscall.h>
@@ -69,8 +70,12 @@
 #define FEED_MAX_CHARS     500u
 #define FEED_CREATED_CAP   40u
 #define FEED_DRAIN_MAX     4u             /* INSERT ... RETURNING yields one row; then DONE           */
-#define FEED_CKPT_FRAMES   4096
+#ifndef FEED_CKPT_FRAMES
+#define FEED_CKPT_FRAMES   4096           /* overridable (-D) so a test build checkpoints after a few writes */
+#endif
 #define FEED_CKPT_SLEEP_US 20000u
+#define FEED_HOLD_MAX_NS   250000000LL    /* writes are held at most 250 ms per checkpoint, as in shim.c   */
+#define FEED_CKPT_TAIL     3u             /* tail passes per hold                                          */
 #define FEED_INT_DIGITS    24u
 #define FEED_ESC_WORST     6u             /* one byte escapes to at most \u00XX                         */
 
@@ -130,6 +135,7 @@ struct feed_state {
   int ck_started;
   int stop;                    /* atomic: set at unload, ends the checkpoint loop */
   int wal_frames;              /* atomic: frames in the WAL after the last commit */
+  long long hold_until;        /* atomic: CLOCK_MONOTONIC ns until which writes answer busy; 0 = none */
   int opened;                  /* under mu */
   char path[FEED_PATH_CAP];    /* the path opened, so a second open/1 can be checked against it */
   unsigned long lock_faults;   /* unlock failures observed; never expected */
@@ -144,6 +150,8 @@ static struct feed_state g_feed = {
   .body = { g_body_mem, 0u, FEED_BODY_CAP, 0 },
   .text = { g_text_mem, 0u, FEED_TEXT_CAP, 0 },
 };
+
+static int feed_writes_held(void);
 
 /* ==== buffers ================================================================================ */
 
@@ -549,6 +557,8 @@ static ERL_NIF_TERM nif_like(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]
     r = feed_ise(env); /* uid comes from a verified token; anything else is a caller fault */
   } else if (enif_get_int64(env, argv[1], &id) == 0 || id <= 0) {
     r = feed_ise(env);
+  } else if (feed_writes_held() != 0) {
+    r = enif_make_atom(env, "busy"); /* a checkpoint holds writes; Elixir retries, bounded */
   } else if (feed_lock() == 0) {
     r = feed_ise(env);
   } else {
@@ -760,6 +770,8 @@ static ERL_NIF_TERM nif_create(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv
     r = feed_ise(env);
   } else if (enif_inspect_binary(env, argv[1], &user) == 0 || enif_inspect_binary(env, argv[2], &raw) == 0) {
     r = feed_ise(env); /* Elixir passes binaries; anything else is a caller fault, not a raise */
+  } else if (feed_writes_held() != 0) {
+    r = enif_make_atom(env, "busy"); /* a checkpoint holds writes; Elixir retries, bounded */
   } else if (feed_lock() == 0) {
     r = feed_ise(env);
   } else {
@@ -878,25 +890,54 @@ static int feed_wal_hook(void *arg, sqlite3 *d, const char *name, int frames) {
   return SQLITE_OK;
 }
 
-/* Bulk pass without the request lock (reads and writes go on), then a tail pass under it: no
- * writer can append while we hold mu, so the tail catches up and the next write restarts the log.
- * Without the tail, a busy writer keeps the WAL from ever restarting and it grows without bound. */
+static long long feed_now_ns(void) {
+  struct timespec t;
+  long long r;
+  if (clock_gettime(CLOCK_MONOTONIC, &t) != 0) {
+    r = 0; /* cannot read the clock: callers treat 0 as "no hold" */
+  } else {
+    r = (long long)t.tv_sec * 1000000000LL + (long long)t.tv_nsec;
+  }
+  return r;
+}
+
+/* 1 while a checkpoint holds writes. Reads never wait. A deadline, not a flag: a starved
+ * checkpoint thread cannot hold writes past FEED_HOLD_MAX_NS. */
+static int feed_writes_held(void) {
+  long long until = __atomic_load_n(&g_feed.hold_until, __ATOMIC_ACQUIRE);
+  return (until != 0 && feed_now_ns() < until) ? 1 : 0;
+}
+
+/* Bulk pass with writes going on, then up to FEED_CKPT_TAIL tail passes with writes held so the
+ * log catches up and the next write restarts it. Never takes mu, so request NIFs never wait on it. */
 static void feed_ck_pass(void) {
   int log = 0;
   int done = 0;
+  unsigned k = 0u;
   int rc = sqlite3_wal_checkpoint_v2(g_feed.ckdb, NULL, SQLITE_CHECKPOINT_PASSIVE, &log, &done);
   if (rc != SQLITE_OK && rc != SQLITE_BUSY) {
     /* I/O error: retried next tick. The WAL keeps growing meanwhile, which is safe. */
-  } else if (pthread_mutex_lock(&g_feed.mu) != 0) {
-    /* Could not hold writers off: retried next tick. */
   } else {
-    rc = sqlite3_wal_checkpoint_v2(g_feed.ckdb, NULL, SQLITE_CHECKPOINT_PASSIVE, &log, &done);
+    long long until = feed_now_ns() + FEED_HOLD_MAX_NS;
+    __atomic_store_n(&g_feed.hold_until, until, __ATOMIC_RELEASE);
+    rc = SQLITE_BUSY;
+    while (k < FEED_CKPT_TAIL && feed_now_ns() < until && !(rc == SQLITE_OK && log >= 0 && log == done)) {
+      rc = sqlite3_wal_checkpoint_v2(g_feed.ckdb, NULL, SQLITE_CHECKPOINT_PASSIVE, &log, &done);
+      k++;
+    }
+#ifndef FEED_TEST_HOLD_STUCK
+    __atomic_store_n(&g_feed.hold_until, 0LL, __ATOMIC_RELEASE);
+#else
+    /* Control build: the hold never ends early, so writes must come back as a bounded 500. */
+#endif
+#ifdef FEED_TEST_TRACE
+    (void)fprintf(stderr, "ckpt rc=%d log=%d done=%d tails=%u\n", rc, log, done, k);
+#endif
     if (rc == SQLITE_OK && log >= 0 && log == done) {
       __atomic_store_n(&g_feed.wal_frames, 0, __ATOMIC_RELAXED); /* caught up: log restarts */
     } else {
-      /* Not fully copied back (I/O error): retried next tick. */
+      /* Not fully copied back within the hold: retried next tick. */
     }
-    feed_unlock();
   }
 }
 
@@ -998,6 +1039,8 @@ static const char *feed_start_checkpointer(const char *path) {
     fail = "checkpoint open";
   } else if (sqlite3_exec(g_feed.ckdb, "PRAGMA wal_autocheckpoint = 0", NULL, NULL, NULL) != SQLITE_OK) {
     fail = "checkpoint pragma";
+  } else if (sqlite3_exec(g_feed.ckdb, "SELECT count(*) FROM sqlite_schema", NULL, NULL, NULL) != SQLITE_OK) {
+    fail = "checkpoint read"; /* a connection that has never read has no WAL open: checkpoints answer -1/-1 */
   } else if (pthread_attr_init(&at) != 0) {
     fail = "checkpoint thread attr";
   } else {
