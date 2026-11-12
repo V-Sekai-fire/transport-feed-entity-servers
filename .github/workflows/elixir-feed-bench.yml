@@ -50,7 +50,7 @@ env:
 jobs:
   bench:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - name: Runner conditions
@@ -63,6 +63,8 @@ jobs:
         with:
           otp-version: "27"
           elixir-version: "1.18"
+      - name: Bench gate self-test (fixtures, no servers)
+        run: elixir transports/elixir-feed/bench/ab.exs --self-test
       - name: Install Rust 1.94.0, sqlite3 and k6
         run: |
           rustup toolchain install 1.94.0 --profile minimal

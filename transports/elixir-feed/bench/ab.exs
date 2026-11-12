@@ -39,6 +39,8 @@ defmodule AB do
     end
   end
 
+  def main(["--self-test"]), do: SelfTest.run()
+
   def main(_) do
     IO.puts("usage: elixir bench/ab.exs <repo root> <challenge checkout>")
     System.halt(2)
@@ -84,7 +86,7 @@ defmodule AB do
     end
   end
 
-  defp positive_ints(parts, default) do
+  def positive_ints(parts, default) do
     ns = for p <- parts, {n, ""} <- [Integer.parse(p)], n > 0, uniq: true, do: n
     if ns == [], do: default, else: ns
   end
@@ -124,7 +126,7 @@ defmodule AB do
 
   defp preflight(cfg) do
     missing =
-      for exe <- ["taskset", "k6", "curl", "bash", "elixir", "kill"], System.find_executable(exe) == nil, do: exe
+      for exe <- ["taskset", "timeout", "k6", "curl", "bash", "elixir", "kill"], System.find_executable(exe) == nil, do: exe
 
     unbuilt = for s <- cfg.servers, s != "elixir", not File.exists?(elem(command(cfg, s), 0)), do: s
     {must, may} = Enum.split_with(unbuilt, &(&1 in cfg.gated))
@@ -195,17 +197,26 @@ defmodule AB do
     end
   end
 
-  defp wait_up(_port, 0), do: {:error, :did_not_start}
+  defp wait_up(port, 0), do: {:error, {:did_not_start, tail(port, "")}}
 
   defp wait_up(port, n) do
     receive do
-      {^port, {:exit_status, code}} -> {:error, {:exited, code}}
+      {^port, {:exit_status, code}} -> {:error, {:exited, code, tail(port, "")}}
     after
       0 ->
         case health() do
           :up -> :ok
           :down -> Process.sleep(1000) && wait_up(port, n - 1)
         end
+    end
+  end
+
+  # The last 500 bytes the server printed (perror lines), drained from the mailbox.
+  defp tail(port, acc) do
+    receive do
+      {^port, {:data, d}} -> tail(port, acc <> d)
+    after
+      0 -> binary_part(acc, max(byte_size(acc) - 500, 0), min(byte_size(acc), 500))
     end
   end
 
@@ -250,7 +261,7 @@ defmodule AB do
 
       case start(cfg, server) do
         {:ok, h} ->
-          {out, _code} = System.cmd("bash", ["test/test.sh", @base], cd: cfg.chal, stderr_to_stdout: true)
+          {out, _code} = System.cmd("timeout", ["300", "bash", "test/test.sh", @base], cd: cfg.chal, stderr_to_stdout: true)
           stop(h)
           last = out |> String.split("\n", trim: true) |> List.last()
           IO.puts("conformance #{server}: #{last}")
@@ -320,7 +331,8 @@ defmodule AB do
         w0 = System.monotonic_time(:millisecond)
         args = ["-c", cfg.load_cpus, "k6", "run", "-q", "-e", "TOKENS=#{Path.join(cfg.chal, "seed/tokens.json")}",
                 "-e", "SUMMARY=#{summary}" | k6args]
-        {_out, _code} = System.cmd("taskset", args, stderr_to_stdout: true)
+        # A hung server must cost one run, not the job's timeout.
+        {_out, _code} = System.cmd("timeout", ["300", "taskset" | args], stderr_to_stdout: true)
         t1 = cpu_ticks(h.pid)
         w1 = System.monotonic_time(:millisecond)
         stop(h)
@@ -370,7 +382,8 @@ defmodule AB do
 
   # ---- report and gates ----------------------------------------------------------------------
 
-  defp finish(cfg, results) do
+  # Pure: results in, {oks, errors, ratios, gates} out. The self-test drives this with fixtures.
+  def evaluate(cfg, results) do
     oks = for {:ok, r} <- results, do: r
     errors = for {:error, e} <- results, do: e
     gated_errors = Enum.filter(errors, &(&1.server in cfg.gated))
@@ -387,6 +400,11 @@ defmodule AB do
        "ratio #{fmt(ratio, 2)} over MAX_RATIO #{fmt(cfg.max_ratio, 2)}"}
     ]
 
+    {oks, errors, ratios, gates}
+  end
+
+  defp finish(cfg, results) do
+    {oks, errors, ratios, gates} = evaluate(cfg, results)
     text = report(cfg, oks, errors, ratios, gates)
     IO.puts(text)
 
@@ -468,6 +486,47 @@ defmodule AB do
 
   defp fmt(x, d) when is_number(x), do: :erlang.float_to_binary(x * 1.0, decimals: d)
   defp fmt(_x, _d), do: "n/a"
+end
+
+defmodule SelfTest do
+  # Fixtures through AB.evaluate/2: each case names the gate outcomes it must produce.
+  @cfg %{servers: ["rust", "elixir", "hargup"], rates: [600, 4000], gated: ["rust", "elixir"], max_ratio: nil}
+
+  defp run_row(server, rep, us, extra \\ %{}) do
+    Map.merge(%{server: server, kind: "rate", param: 4000, rep: rep, us_per_req: us, dropped: 0, failed: 0.0}, extra)
+  end
+
+  defp clean, do: for(rep <- 1..3, {s, us} <- [{"rust", 10.0}, {"elixir", 50.0}], do: {:ok, run_row(s, rep, us)})
+
+  defp gates(cfg, results), do: AB.evaluate(cfg, results) |> elem(3) |> Enum.map(&elem(&1, 1))
+  defp ratio(cfg, results), do: AB.evaluate(cfg, results) |> elem(2) |> Map.get({"elixir", 4000})
+
+  def run do
+    cases = [
+      {"clean runs pass every gate", gates(@cfg, clean()) == [true, true, true]},
+      {"clean ratio is the median 5.00", ratio(@cfg, clean()) == 5.0},
+      {"MAX_RATIO under the ratio fails the ratio gate", gates(%{@cfg | max_ratio: 4.0}, clean()) == [true, true, false]},
+      {"MAX_RATIO over the ratio passes", gates(%{@cfg | max_ratio: 6.0}, clean()) == [true, true, true]},
+      {"a report-only server's error does not fail",
+       gates(@cfg, clean() ++ [{:error, %{server: "hargup", reason: "x"}}]) == [true, true, true]},
+      {"a gated server's error fails", gates(@cfg, clean() ++ [{:error, %{server: "elixir", reason: "x"}}]) == [false, true, true]},
+      {"a report-only server's failed requests do not fail",
+       gates(@cfg, clean() ++ [{:ok, run_row("hargup", 1, 9.0, %{failed: 0.5})}]) == [true, true, true]},
+      {"a gated server's 2 % failed requests fail",
+       gates(@cfg, clean() ++ [{:ok, run_row("elixir", 4, 50.0, %{failed: 0.02})}]) == [true, false, true]},
+      {"a run that dropped iterations leaves the ratio",
+       ratio(@cfg, clean() ++ [{:ok, run_row("elixir", 1, 1000.0, %{dropped: 5})}]) == 5.0},
+      {"without the dropped filter that run would move it (control)",
+       ratio(@cfg, [{:ok, run_row("rust", 1, 10.0)}, {:ok, run_row("elixir", 1, 1000.0)}]) == 100.0},
+      {"RATES keeps positive integers once", AB.positive_ints(["a", "0", "600", "600", "4000"], [1]) == [600, 4000]},
+      {"RATES with nothing usable falls back", AB.positive_ints(["x", "-3"], [600, 4000]) == [600, 4000]}
+    ]
+
+    Enum.each(cases, fn {name, ok} -> IO.puts("#{if ok, do: "ok  ", else: "FAIL"} #{name}") end)
+    failed = Enum.count(cases, fn {_n, ok} -> not ok end)
+    IO.puts("#{length(cases) - failed} of #{length(cases)} self-test cases pass")
+    System.halt(if failed == 0, do: 0, else: 1)
+  end
 end
 
 AB.main(System.argv())
