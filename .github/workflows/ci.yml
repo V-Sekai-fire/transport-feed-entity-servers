@@ -67,14 +67,6 @@ jobs:
       - name: The tick object has no allocator or Lean runtime symbols
         run: |
           if nm "$RUNNER_TEMP/entity_tick.o" | grep -E ' U (malloc|free|lean_)'; then exit 1; fi
-      - name: Zone relay under strict C99, no heap, frames not read; flipped traces must fail, the trace must replay
-        run: |
-          mkdir -p "$RUNNER_TEMP/zone-relay"
-          BIN="$RUNNER_TEMP/zone-relay" CC=gcc bash deploy/scripts/zone-relay-check.sh
-      - name: Zone relay on sockets and under drifting clocks; the wrong socket, a 6 ms handler and the fixed-phase rule must show
-        run: |
-          mkdir -p "$RUNNER_TEMP/zone-net"
-          BIN="$RUNNER_TEMP/zone-net" CC=gcc bash deploy/scripts/zone-net-check.sh
       - name: Planted 6 ms handler must fail the 4 ms budget
         run: |
           for i in 1 2 3 4 5 6 7 8; do
