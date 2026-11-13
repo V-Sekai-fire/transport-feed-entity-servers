@@ -125,6 +125,9 @@ jobs:
         working-directory: transports/elixir-feed
         run: |
           if grep -rnE '^\s*(try|rescue|catch|throw)\b' lib; then exit 1; fi
+      # Builds the NIF twice (checkpoints forced every 16 frames, and off) and fails if the log is not bounded.
+      - name: The NIF's WAL checkpoint copies frames back
+        run: elixir transports/elixir-feed/bench/wal-bound.exs "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/challenge" 4000
       - name: Conformance (42/42 each) and the A/B bench
         working-directory: transports/elixir-feed
         env:
