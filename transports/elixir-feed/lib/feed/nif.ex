@@ -25,4 +25,7 @@ defmodule Feed.Nif do
   def create(_uid, _user, _body), do: :erlang.nif_error(:not_loaded)
   def claims(_h, _p), do: :erlang.nif_error(:not_loaded)
   def health(_uptime), do: :erlang.nif_error(:not_loaded)
+  def ck_register, do: :erlang.nif_error(:not_loaded)
+  def ck_bulk, do: :erlang.nif_error(:not_loaded)
+  def ck_tail, do: :erlang.nif_error(:not_loaded)
 end

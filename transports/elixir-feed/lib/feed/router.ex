@@ -4,7 +4,7 @@ defmodule Feed.Router do
   binaries; the atom :error from the NIF becomes a canned 500.
   """
 
-  @busy_tries 500
+  @busy_tries 4
   @ise "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: 33\r\n\r\n{\"error\":\"internal server error\"}"
 
   def route("GET", "/feed", _auth, _body), do: ok(Feed.Nif.feed())
@@ -83,17 +83,15 @@ defmodule Feed.Router do
   defp ok(:error), do: @ise
   defp ok(bin), do: bin
 
-  # A write NIF answers :busy while a WAL checkpoint holds writes (at most 250 ms). Wait 1 ms
-  # without spinning, so the checkpoint thread gets the CPU, and give up as a 500 after the bound.
+  # A write NIF answers :busy while the tail checkpoint holds writes. The writer waits for the state
+  # machine's release message (no clock, no polling), then retries; after @busy_tries it answers 500.
   defp write(_f, 0), do: @ise
 
   defp write(f, n) do
     case f.() do
       :busy ->
-        receive do
-        after
-          1 -> write(f, n - 1)
-        end
+        :ok = Feed.Checkpoint.wait()
+        write(f, n - 1)
 
       other ->
         ok(other)

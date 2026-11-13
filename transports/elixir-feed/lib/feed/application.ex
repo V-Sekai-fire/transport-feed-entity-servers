@@ -14,7 +14,7 @@ defmodule Feed.Application do
          :ok <- Feed.Nif.open(path) do
       :persistent_term.put(:feed_secret, secret)
       :persistent_term.put(:feed_started, System.monotonic_time(:second))
-      children = [{Feed.Listener, {ip, port}}]
+      children = [Feed.Checkpoint, {Feed.Listener, {ip, port}}]
       Supervisor.start_link(children, strategy: :one_for_one, name: Feed.Supervisor)
     else
       {:error, reason} -> {:error, reason}

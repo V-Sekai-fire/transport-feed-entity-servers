@@ -11,8 +11,8 @@
  *
  *  The file follows the JPL "Power of Ten" rules for safety-critical C (Holzmann, 2006):
  *    1. Simple control flow: no goto, no setjmp/longjmp, no recursion. Each function has one exit.
- *    2. Every loop has a fixed upper bound, stated next to it. The one exception is the checkpoint
- *       thread's service loop, which runs for the life of the VM and ends on `stop` (see there).
+ *    2. Every loop has a fixed upper bound, stated next to it. There is no thread and no sleep: the
+ *       checkpoint is two dirty NIFs driven by an Elixir state machine (lib/feed/checkpoint.ex).
  *    3. No dynamic allocation after initialisation. Response and scratch buffers are static and
  *       sized for the worst case the spec allows; an overflow is answered with a 500.
  *    4. No function is longer than 60 lines.
@@ -26,11 +26,12 @@
  *   10. Built with -Wall -Wextra -Wpedantic -Werror; zero warnings.
  *
  *  Documented deviations:
- *    D1. Function pointers: the ErlNifFunc table, the WAL hook and pthread_create's start routine
+ *    D1. Function pointers: the ErlNifFunc table, and the WAL hook
  *        are required by their APIs.
  *    D2. Allocation after init: enif_make_new_binary (the VM's allocator, owned by the VM) and
- *        SQLite's own page cache and statement memory (bounded by cache_size). This file calls
- *        no malloc/realloc/free itself.
+ *        SQLite's own page cache and statement memory (bounded by cache_size), and one
+ *        enif_alloc_env per checkpoint cycle (a few per second at most) to send `ck_due`. This file
+ *        calls no malloc/realloc/free itself.
  *    D3. The SQLite amalgamation is compiled as its own translation unit with the reference's
  *        flags and -w; it is third-party code, unmodified, and is not held to these rules.
  *
@@ -53,12 +54,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/resource.h>
-#include <time.h>
 #include <unistd.h>
-#ifdef __linux__
-#include <sys/syscall.h>
-#endif
 
 /* ---- limits (every bound in this file is one of these) ------------------------------------ */
 #define FEED_BODY_CAP      (512u * 1024u) /* response body: 20 posts x 2000 B x 6 (escaping) < 256 KB */
@@ -73,9 +69,6 @@
 #ifndef FEED_CKPT_FRAMES
 #define FEED_CKPT_FRAMES   4096           /* overridable (-D) so a test build checkpoints after a few writes */
 #endif
-#define FEED_CKPT_SLEEP_US 20000u
-#define FEED_HOLD_MAX_NS   250000000LL    /* writes are held at most 250 ms per checkpoint, as in shim.c   */
-#define FEED_CKPT_TAIL     3u             /* tail passes per hold                                          */
 #define FEED_INT_DIGITS    24u
 #define FEED_ESC_WORST     6u             /* one byte escapes to at most \u00XX                         */
 
@@ -128,14 +121,14 @@ struct feed_buf {
 
 struct feed_state {
   sqlite3 *db;                 /* request connection; only under mu */
-  sqlite3 *ckdb;               /* checkpoint connection; only on the checkpoint thread */
+  sqlite3 *ckdb;               /* checkpoint connection; only inside the two checkpoint NIFs, which never overlap */
   sqlite3_stmt *st[ST_COUNT];
   pthread_mutex_t mu;
-  pthread_t ck_thread;
-  int ck_started;
-  int stop;                    /* atomic: set at unload, ends the checkpoint loop */
   int wal_frames;              /* atomic: frames in the WAL after the last commit */
-  long long hold_until;        /* atomic: CLOCK_MONOTONIC ns until which writes answer busy; 0 = none */
+  int hold;                    /* atomic: 1 while the tail checkpoint holds writes; writes answer :busy */
+  int armed;                   /* atomic: 1 from the `due` message until the tail checkpoint ends */
+  int ck_registered;           /* under mu: ck_pid is valid */
+  ErlNifPid ck_pid;            /* under mu: the checkpoint state machine */
   int opened;                  /* under mu */
   char path[FEED_PATH_CAP];    /* the path opened, so a second open/1 can be checked against it */
   unsigned long lock_faults;   /* unlock failures observed; never expected */
@@ -151,7 +144,39 @@ static struct feed_state g_feed = {
   .text = { g_text_mem, 0u, FEED_TEXT_CAP, 0 },
 };
 
-static int feed_writes_held(void);
+
+/* The write NIFs call these after a write. feed_due_locked (under mu): 1 once the WAL has reached the
+ * threshold and no cycle is running, and arms the cycle, so exactly one `due` message goes out per cycle.
+ * feed_notify (after unlock): sends it. A dead state machine leaves the cycle armed until the next
+ * registration, which resets it; writes are never blocked by that. */
+static int feed_due_locked(void) {
+  int due = 0;
+  if (g_feed.ck_registered != 0 && __atomic_load_n(&g_feed.wal_frames, __ATOMIC_RELAXED) >= FEED_CKPT_FRAMES) {
+    int expect = 0;
+    due = __atomic_compare_exchange_n(&g_feed.armed, &expect, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED) ? 1 : 0;
+  } else {
+    /* Below the threshold, or nobody registered. */
+  }
+  return due;
+}
+
+static void feed_notify(int due, const ErlNifPid *pid) {
+  if (due != 0) {
+    ErlNifEnv *e = enif_alloc_env();
+    if (e == NULL) {
+      __atomic_store_n(&g_feed.armed, 0, __ATOMIC_RELEASE); /* no memory: the next write tries again */
+    } else {
+      if (enif_send(NULL, pid, e, enif_make_atom(e, "ck_due")) == 0) {
+        __atomic_store_n(&g_feed.armed, 0, __ATOMIC_RELEASE); /* the process is gone: re-arm for its successor */
+      } else {
+        /* Sent: the state machine clears `armed` when its cycle ends. */
+      }
+      enif_free_env(e);
+    }
+  } else {
+    /* Nothing due. */
+  }
+}
 
 /* ==== buffers ================================================================================ */
 
@@ -551,19 +576,23 @@ static ERL_NIF_TERM nif_like(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]
   ErlNifSInt64 uid = 0;
   ErlNifSInt64 id = 0;
   ERL_NIF_TERM r;
+  int ck_pid_ok = 0;
+  ErlNifPid ck_pid;
   if (argc != 2) {
     r = feed_ise(env);
   } else if (enif_get_int64(env, argv[0], &uid) == 0 || uid <= 0) {
     r = feed_ise(env); /* uid comes from a verified token; anything else is a caller fault */
   } else if (enif_get_int64(env, argv[1], &id) == 0 || id <= 0) {
     r = feed_ise(env);
-  } else if (feed_writes_held() != 0) {
-    r = enif_make_atom(env, "busy"); /* a checkpoint holds writes; Elixir retries, bounded */
   } else if (feed_lock() == 0) {
     r = feed_ise(env);
   } else {
-    r = feed_like_locked(env, (int64_t)uid, (int64_t)id);
+    int held = __atomic_load_n(&g_feed.hold, __ATOMIC_ACQUIRE); /* inside the lock: see feed_tail */
+    r = (held != 0) ? enif_make_atom(env, "busy") : feed_like_locked(env, (int64_t)uid, (int64_t)id);
+    ck_pid_ok = feed_due_locked();
+    ck_pid = g_feed.ck_pid;
     feed_unlock();
+    feed_notify(ck_pid_ok, &ck_pid);
   }
   return r;
 }
@@ -764,19 +793,23 @@ static ERL_NIF_TERM nif_create(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv
   ErlNifBinary user;
   ErlNifBinary raw;
   ERL_NIF_TERM r;
+  int ck_pid_ok = 0;
+  ErlNifPid ck_pid;
   if (argc != 3) {
     r = feed_ise(env);
   } else if (enif_get_int64(env, argv[0], &uid) == 0 || uid <= 0) {
     r = feed_ise(env);
   } else if (enif_inspect_binary(env, argv[1], &user) == 0 || enif_inspect_binary(env, argv[2], &raw) == 0) {
     r = feed_ise(env); /* Elixir passes binaries; anything else is a caller fault, not a raise */
-  } else if (feed_writes_held() != 0) {
-    r = enif_make_atom(env, "busy"); /* a checkpoint holds writes; Elixir retries, bounded */
   } else if (feed_lock() == 0) {
     r = feed_ise(env);
   } else {
-    r = feed_create_locked(env, (int64_t)uid, &user, &raw);
+    int held = __atomic_load_n(&g_feed.hold, __ATOMIC_ACQUIRE);
+    r = (held != 0) ? enif_make_atom(env, "busy") : feed_create_locked(env, (int64_t)uid, &user, &raw);
+    ck_pid_ok = feed_due_locked();
+    ck_pid = g_feed.ck_pid;
     feed_unlock();
+    feed_notify(ck_pid_ok, &ck_pid);
   }
   return r;
 }
@@ -890,88 +923,77 @@ static int feed_wal_hook(void *arg, sqlite3 *d, const char *name, int frames) {
   return SQLITE_OK;
 }
 
-static long long feed_now_ns(void) {
-  struct timespec t;
-  long long r;
-  if (clock_gettime(CLOCK_MONOTONIC, &t) != 0) {
-    r = 0; /* cannot read the clock: callers treat 0 as "no hold" */
-  } else {
-    r = (long long)t.tv_sec * 1000000000LL + (long long)t.tv_nsec;
-  }
-  return r;
-}
+/* ---- the checkpoint, driven by the Elixir state machine (lib/feed/checkpoint.ex) ------------------
+ * No thread and no sleep. A write NIF sends `ck_due` once the WAL passes the threshold; the state
+ * machine then calls feed_bulk (writes go on), then feed_tail (writes held), then goes idle. */
 
-/* 1 while a checkpoint holds writes. Reads never wait. A deadline, not a flag: a starved
- * checkpoint thread cannot hold writes past FEED_HOLD_MAX_NS. */
-static int feed_writes_held(void) {
-  long long until = __atomic_load_n(&g_feed.hold_until, __ATOMIC_ACQUIRE);
-  return (until != 0 && feed_now_ns() < until) ? 1 : 0;
-}
-
-/* Bulk pass with writes going on, then up to FEED_CKPT_TAIL tail passes with writes held so the
- * log catches up and the next write restarts it. Never takes mu, so request NIFs never wait on it. */
-static void feed_ck_pass(void) {
+/* Copies what the readers and writers leave alone. Never takes mu. 1 on success, 0 on an I/O error. */
+static ERL_NIF_TERM nif_ck_bulk(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   int log = 0;
   int done = 0;
-  unsigned k = 0u;
-  int rc = sqlite3_wal_checkpoint_v2(g_feed.ckdb, NULL, SQLITE_CHECKPOINT_PASSIVE, &log, &done);
-  if (rc != SQLITE_OK && rc != SQLITE_BUSY) {
-    /* I/O error: retried next tick. The WAL keeps growing meanwhile, which is safe. */
+  int rc = SQLITE_MISUSE;
+  (void)argv;
+  if (argc == 0 && g_feed.ckdb != NULL) {
+    rc = sqlite3_wal_checkpoint_v2(g_feed.ckdb, NULL, SQLITE_CHECKPOINT_PASSIVE, &log, &done);
   } else {
-    long long until = feed_now_ns() + FEED_HOLD_MAX_NS;
-    __atomic_store_n(&g_feed.hold_until, until, __ATOMIC_RELEASE);
-    rc = SQLITE_BUSY;
-    while (k < FEED_CKPT_TAIL && feed_now_ns() < until && !(rc == SQLITE_OK && log >= 0 && log == done)) {
+    /* Not open, or a wrong call: report an error below. */
+  }
+  return enif_make_atom(env, (rc == SQLITE_OK || rc == SQLITE_BUSY) ? "ok" : "error");
+}
+
+/* Holds writes, waits for the write that may be in flight by taking and dropping mu (a write that gets
+ * mu afterwards sees `hold` inside the lock and answers :busy), then copies the rest. When everything is
+ * copied the next write restarts the log. Always clears `hold` and `armed`. Returns :done if the log was
+ * fully copied back, :partial if readers still pinned frames. */
+static ERL_NIF_TERM nif_ck_tail(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+  int log = -1;
+  int done = -2;
+  int rc = SQLITE_MISUSE;
+  const char *answer = "error";
+  (void)argv;
+  if (argc != 0 || g_feed.ckdb == NULL) {
+    /* Wrong call or not open. */
+  } else {
+    __atomic_store_n(&g_feed.hold, 1, __ATOMIC_RELEASE);
+    if (feed_lock() == 0) {
+      /* Cannot take the barrier: skip the tail, the bulk pass already ran. */
+    } else {
+      feed_unlock(); /* barrier: every write now either finished or will see `hold` and back off */
       rc = sqlite3_wal_checkpoint_v2(g_feed.ckdb, NULL, SQLITE_CHECKPOINT_PASSIVE, &log, &done);
-      k++;
-    }
-#ifndef FEED_TEST_HOLD_STUCK
-    __atomic_store_n(&g_feed.hold_until, 0LL, __ATOMIC_RELEASE);
-#else
-    /* Control build: the hold never ends early, so writes must come back as a bounded 500. */
-#endif
+      if (rc == SQLITE_OK && log >= 0 && log == done) {
+        __atomic_store_n(&g_feed.wal_frames, 0, __ATOMIC_RELAXED); /* caught up: the log restarts */
+        answer = "done";
+      } else {
+        answer = "partial"; /* retried at the next threshold crossing */
+      }
 #ifdef FEED_TEST_TRACE
-    (void)fprintf(stderr, "ckpt rc=%d log=%d done=%d tails=%u\n", rc, log, done, k);
+      (void)fprintf(stderr, "ckpt tail rc=%d log=%d done=%d\n", rc, log, done);
 #endif
-    if (rc == SQLITE_OK && log >= 0 && log == done) {
-      __atomic_store_n(&g_feed.wal_frames, 0, __ATOMIC_RELAXED); /* caught up: log restarts */
-    } else {
-      /* Not fully copied back within the hold: retried next tick. */
     }
+    __atomic_store_n(&g_feed.hold, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_feed.armed, 0, __ATOMIC_RELEASE);
   }
+  return enif_make_atom(env, answer);
 }
 
-static void feed_ck_nice(void) {
-#ifdef __linux__
-  /* On one vCPU a checkpoint at default priority takes the scheduler's CPU for its whole pass. */
-  if (setpriority(PRIO_PROCESS, (id_t)syscall(SYS_gettid), 19) != 0) {
-    /* Not permitted here: checkpoints run at normal priority, which is still correct. */
+/* The state machine registers itself; a restart registers again and re-arms. */
+static ERL_NIF_TERM nif_ck_register(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+  ErlNifPid pid;
+  const char *answer = "error";
+  (void)argv;
+  if (argc != 0 || enif_self(env, &pid) == NULL) {
+    /* Wrong call. */
+  } else if (feed_lock() == 0) {
+    /* Cannot lock. */
   } else {
-    /* Lowered. */
+    g_feed.ck_pid = pid;
+    g_feed.ck_registered = 1;
+    __atomic_store_n(&g_feed.armed, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_feed.hold, 0, __ATOMIC_RELEASE);
+    feed_unlock();
+    answer = "ok";
   }
-#else
-  /* No per-thread nice on this platform: the thread runs at normal priority. */
-#endif
-}
-
-static void *feed_ck_main(void *arg) {
-  (void)arg;
-  feed_ck_nice();
-  /* The one loop without a count bound (rule 2 deviation): it runs for the life of the VM, one
-   * pass per FEED_CKPT_SLEEP_US, and ends when unload sets `stop`. */
-  while (__atomic_load_n(&g_feed.stop, __ATOMIC_ACQUIRE) == 0) {
-    if (usleep(FEED_CKPT_SLEEP_US) != 0) {
-      /* Interrupted by a signal: the next pass simply comes sooner. */
-    } else {
-      /* Slept the full interval. */
-    }
-    if (__atomic_load_n(&g_feed.wal_frames, __ATOMIC_RELAXED) >= FEED_CKPT_FRAMES) {
-      feed_ck_pass();
-    } else {
-      /* Below the threshold: nothing worth copying back yet. */
-    }
-  }
-  return NULL;
+  return enif_make_atom(env, answer);
 }
 
 /* ==== open / close =========================================================================== */
@@ -1032,25 +1054,16 @@ static const char *feed_prepare_all(void) {
   return fail;
 }
 
-static const char *feed_start_checkpointer(const char *path) {
+static const char *feed_open_checkpoint_db(const char *path) {
   const char *fail = NULL;
-  pthread_attr_t at;
   if (sqlite3_open_v2(path, &g_feed.ckdb, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX, "unix-excl") != SQLITE_OK) {
     fail = "checkpoint open";
   } else if (sqlite3_exec(g_feed.ckdb, "PRAGMA wal_autocheckpoint = 0", NULL, NULL, NULL) != SQLITE_OK) {
     fail = "checkpoint pragma";
   } else if (sqlite3_exec(g_feed.ckdb, "SELECT count(*) FROM sqlite_schema", NULL, NULL, NULL) != SQLITE_OK) {
     fail = "checkpoint read"; /* a connection that has never read has no WAL open: checkpoints answer -1/-1 */
-  } else if (pthread_attr_init(&at) != 0) {
-    fail = "checkpoint thread attr";
   } else {
-    __atomic_store_n(&g_feed.stop, 0, __ATOMIC_RELEASE);
-    if (pthread_create(&g_feed.ck_thread, &at, feed_ck_main, NULL) != 0) {
-      fail = "checkpoint thread";
-    } else {
-      g_feed.ck_started = 1; /* joinable: unload stops and joins it */
-    }
-    (void)pthread_attr_destroy(&at); /* only fails on an invalid attr, which init just made valid */
+    /* Open, with its WAL attached. */
   }
   return fail;
 }
@@ -1081,7 +1094,7 @@ static ERL_NIF_TERM feed_open_locked(ErlNifEnv *env, const char *path) {
   } else {
     fail = feed_open_db(path);
     fail = (fail != NULL) ? fail : feed_prepare_all();
-    fail = (fail != NULL) ? fail : feed_start_checkpointer(path);
+    fail = (fail != NULL) ? fail : feed_open_checkpoint_db(path);
     if (fail != NULL) {
       r = feed_err_tuple(env, fail);
       feed_close_all(); /* leave nothing half-open, so a retry starts clean */
@@ -1124,13 +1137,7 @@ static int feed_load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info) {
 
 static void feed_unload(ErlNifEnv *env, void *priv) {
   (void)env; (void)priv;
-  __atomic_store_n(&g_feed.stop, 1, __ATOMIC_RELEASE);
-  if (g_feed.ck_started != 0) {
-    (void)pthread_join(g_feed.ck_thread, NULL); /* the loop sees stop within one sleep */
-    g_feed.ck_started = 0;
-  } else {
-    /* No thread to stop. */
-  }
+  g_feed.ck_registered = 0;
   feed_close_all();
   g_feed.opened = 0;
 }
@@ -1143,6 +1150,9 @@ static ErlNifFunc feed_funcs[] = { /* D1: the VM requires this function-pointer 
   {"create", 3, nif_create, 0},
   {"claims", 2, nif_claims, 0},
   {"health", 1, nif_health, 0},
+  {"ck_register", 0, nif_ck_register, 0},
+  {"ck_bulk", 0, nif_ck_bulk, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"ck_tail", 0, nif_ck_tail, ERL_NIF_DIRTY_JOB_IO_BOUND},
 };
 
 ERL_NIF_INIT(Elixir.Feed.Nif, feed_funcs, feed_load, NULL, NULL, feed_unload)
