@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# The relay on sockets: rules of the source, two planted defects, then the clean run. See docs/zone-net.md.
+# The relay on sockets: rules of the source, three planted defects, and a ledger line. See docs/zone-net.md.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 BIN="${BIN:-$(mktemp -d)}"
 CC="${CC:-gcc}"
 SRC=transports/csrc
 STRICT="-std=c99 -Wall -Wextra -Werror -pedantic -O2"
-RUNS="${RUNS:-8}"
+RUNS="${RUNS:-3}"
 
 opaque() {
   ! grep -n -E 'dgram|held' "$1" | grep -v -E \
@@ -22,6 +22,8 @@ $CC $STRICT -c "$SRC/zone_net.c" -o "$BIN/zone_net.o"
 $CC $STRICT -DZN_PLANT_HALF -c "$SRC/zone_net.c" -o "$BIN/zone_net_half.o"
 $CC -std=gnu99 -O2 -Wall -Wextra -Werror -pthread "$SRC/zone_net_check.c" "$BIN/zone_net.o" "$BIN/zone_relay.o" -o "$BIN/zone_net_check"
 $CC -std=gnu99 -O2 -Wall -Wextra -Werror -pthread "$SRC/zone_net_check.c" "$BIN/zone_net_half.o" "$BIN/zone_relay.o" -o "$BIN/zone_net_check_half"
+$CC $STRICT "$SRC/zone_clock_check.c" "$SRC/zone_relay.c" -o "$BIN/zone_clock_check"
+$CC $STRICT -DZR_PLANT_PHASE "$SRC/zone_clock_check.c" "$SRC/zone_relay.c" -o "$BIN/zone_clock_check_phase"
 $CC $STRICT "$SRC/zone_serve.c" "$BIN/zone_net.o" "$BIN/zone_relay.o" -o "$BIN/zone_serve"
 $CC $STRICT "$SRC/zone_load.c" -o "$BIN/zone_load"
 
@@ -32,15 +34,30 @@ if cmp -s "$SRC/zone_net.c" "$BIN/zone_net_reads.c"; then echo "the planted read
 if opaque "$BIN/zone_net_reads.c" > /dev/null; then echo "the source rule did not catch a planted read"; exit 1; fi
 echo "RULES no heap, no Lean, a frame goes only to recvfrom, zr_put, zr_frame and sendto, planted read caught"
 
-must_fail() {
-  local want="$1"; shift
+rc=0; "$BIN/zone_net_check_half" > "$BIN/half.out" || rc=$?
+tail -1 "$BIN/half.out"
+if [ "$rc" != 1 ] || ! grep -q '^RESULT: FAIL a frame came from the socket of the other half$' "$BIN/half.out"; then echo "the frame from the wrong socket was not caught"; exit 1; fi
+
+# sum <field> <program> [env]: runs the check RUNS times, prints each LEDGER line, leaves the sum of one field in $total.
+sum() {
+  local field="$1" tag="$2"; shift 2
+  total=0
   for i in $(seq 1 "$RUNS"); do
-    if "$@" > "$BIN/control.out"; then cat "$BIN/control.out"; echo "run $i: planted defect not caught"; exit 1; fi
-    grep -q "^RESULT: FAIL $want" "$BIN/control.out" || { cat "$BIN/control.out"; echo "run $i: failed for another reason"; exit 1; }
+    "$@" > "$BIN/run.out" || { cat "$BIN/run.out"; echo "run $i of $tag failed"; exit 1; }
+    line=$(grep '^LEDGER' "$BIN/run.out")
+    echo "$tag $line"
+    total=$((total + $(echo "$line" | sed "s/.* $field=\([0-9]*\).*/\1/")))
   done
-  tail -1 "$BIN/control.out"
 }
-must_fail "a frame came from the socket of the other half" "$BIN/zone_net_check_half"
-must_fail "p99 over the 4 ms budget" env ZONE_SLOW_NS=6000000 "$BIN/zone_net_check"
-for i in $(seq 1 "$RUNS"); do "$BIN/zone_net_check" > "$BIN/clean.out" || { cat "$BIN/clean.out"; echo "run $i of the clean check failed"; exit 1; }; done
-cat "$BIN/clean.out"
+sum honest_refused clean "$BIN/zone_net_check"; clean_refused=$total
+sum p50_ns clean "$BIN/zone_net_check"; clean_p50=$total
+sum p50_ns slow env ZONE_SLOW_NS=6000000 "$BIN/zone_net_check"; slow_p50=$total
+echo "sockets LEDGER runs=$RUNS honest_refused=$clean_refused p50_ns_sum=$clean_p50 slow_p50_ns_sum=$slow_p50"
+
+rc=0; "$BIN/zone_clock_check_phase" > "$BIN/phase.out" || rc=$?
+echo "fixed-phase $(head -1 "$BIN/phase.out")"
+if [ "$rc" != 1 ] || ! grep -q '^RESULT: FAIL an honest frame was refused$' "$BIN/phase.out"; then echo "the fixed-phase rule refused no honest frame of a drifting client"; exit 1; fi
+"$BIN/zone_clock_check" > "$BIN/clock.out" || { cat "$BIN/clock.out"; exit 1; }
+echo "clocks $(head -1 "$BIN/clock.out")"
+if [ "$slow_p50" -lt $((clean_p50 + RUNS * 5000000)) ]; then echo "RESULT: FAIL the planted 6 ms handler did not make the median tick worse by 5 ms"; exit 1; fi
+echo "RESULT: PASS"

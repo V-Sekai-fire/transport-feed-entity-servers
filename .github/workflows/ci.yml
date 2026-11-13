@@ -71,12 +71,10 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/zone-relay"
           BIN="$RUNNER_TEMP/zone-relay" CC=gcc bash deploy/scripts/zone-relay-check.sh
-      - name: Zone relay on sockets; a frame sent from the wrong socket and a 6 ms handler must fail, the clean run must pass
+      - name: Zone relay on sockets and under drifting clocks; the wrong socket, a 6 ms handler and the fixed-phase rule must show
         run: |
           mkdir -p "$RUNNER_TEMP/zone-net"
           BIN="$RUNNER_TEMP/zone-net" CC=gcc bash deploy/scripts/zone-net-check.sh
-      - name: Zone relay sweep of people (measures, does not gate)
-        run: BIN="$RUNNER_TEMP/zone-net" bash deploy/scripts/zone-sweep.sh
       - name: Planted 6 ms handler must fail the 4 ms budget
         run: |
           for i in 1 2 3 4 5 6 7 8; do

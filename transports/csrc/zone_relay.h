@@ -7,12 +7,13 @@
 #define ZR_FRAME_MAX 1472
 #define ZR_SILENT_TICKS 192
 #define ZR_SEND_TICKS 6
+#define ZR_OPEN_TICKS 5
 typedef struct {
   int32_t people[ZR_SLOTS];
   uint64_t heard[ZR_SLOTS];
   uint64_t now;
   uint64_t unread;
-  uint8_t taken[ZR_SLOTS * 2];
+  uint64_t open[ZR_SLOTS * 2];
   uint16_t len[ZR_SLOTS * 2];
   uint8_t store[ZR_SLOTS * 2][ZR_FRAME_MAX];
 } zr_zone_t;

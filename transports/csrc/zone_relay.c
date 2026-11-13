@@ -10,8 +10,8 @@ void zr_reset(zr_zone_t *z) {
   for (int s = 0; s < ZR_SLOTS; s++) {
     z->people[s] = -1;
     z->heard[s] = 0;
-    z->taken[s * 2] = 0;
-    z->taken[s * 2 + 1] = 0;
+    z->open[s * 2] = 0;
+    z->open[s * 2 + 1] = 0;
     blank(z, s);
   }
   z->now = 0;
@@ -45,12 +45,17 @@ int zr_put(zr_zone_t *z, int slot, int half, const void *bytes, size_t len) {
   if (slot < 0 || slot >= ZR_SLOTS || half < 0 || half > 1) return 0;
   if (z->people[slot] == -1) return 0;
   int at = slot * 2 + half;
-  if (z->taken[at]) {
+  if (z->now < z->open[at]) {
     z->unread++;
     return 0;
   }
   if (len > ZR_FRAME_MAX) return 0;
-  z->taken[at] = 1;
+#ifdef ZR_PLANT_PHASE
+  static const uint8_t phase[ZR_SLOTS] = {0, 1, 3, 4};
+  z->open[at] = z->now + (phase[slot] + 2 * ZR_SEND_TICKS - 1 - z->now % ZR_SEND_TICKS) % ZR_SEND_TICKS + 1;
+#else
+  z->open[at] = z->now + ZR_OPEN_TICKS;
+#endif
   if (len > 0) memcpy(z->store[at], bytes, len);
   z->len[at] = (uint16_t)len;
   z->heard[slot] = z->now;
@@ -66,12 +71,7 @@ const uint8_t *zr_frame(const zr_zone_t *z, int viewer, int k, size_t *len) {
 }
 uint64_t zr_tick(zr_zone_t *z) {
   z->now++;
-  static const uint8_t phase[ZR_SLOTS] = {0, 1, 3, 4};
   for (int s = 0; s < ZR_SLOTS; s++) {
-    if (z->now % ZR_SEND_TICKS == phase[s]) {
-      z->taken[s * 2] = 0;
-      z->taken[s * 2 + 1] = 0;
-    }
     if (z->people[s] != -1 && z->now - z->heard[s] > ZR_SILENT_TICKS) {
       z->people[s] = -1;
       blank(z, s);
