@@ -1,11 +1,11 @@
 cff-version: 1.2.0
-message: If you use this code, cite it as below. It is imported unmodified.
+message: If you use this code, cite it as below. It is imported from the pinned commit; only the fatal-error path was changed.
 title: lean-derive-hargup
 abstract: >-
   A feed server for the twelve-dollar-server-challenge. The API is specified in Lean 4 (domain, a
   global invariant over the stored data, read plans proved equal to the specified results, the
   wire contract); a Lean program generates the C application layer, which is compiled with SQLite
-  and a small io_uring runtime into one binary. Imported unmodified at the pinned commit; the
+  and a small io_uring runtime into one binary. Imported at the pinned commit, with exit() and abort() replaced by one rt_fatal hook; the
   challenge repository's MIT licence covers submissions.
 type: software
 authors:
