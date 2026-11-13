@@ -66,9 +66,9 @@ const uint8_t *zr_frame(const zr_zone_t *z, int viewer, int k, size_t *len) {
 }
 uint64_t zr_tick(zr_zone_t *z) {
   z->now++;
-  int opens = z->now % ZR_SEND_TICKS == 0;
+  static const uint8_t phase[ZR_SLOTS] = {0, 1, 3, 4};
   for (int s = 0; s < ZR_SLOTS; s++) {
-    if (opens) {
+    if (z->now % ZR_SEND_TICKS == phase[s]) {
       z->taken[s * 2] = 0;
       z->taken[s * 2 + 1] = 0;
     }
