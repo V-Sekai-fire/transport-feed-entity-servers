@@ -1,0 +1,57 @@
+name: hargup
+# datasources/hargup: the imported lean-derive-hargup runtime builds with its pinned Lean 4.35.0 and passes the
+# challenge's test/test.sh (42/42). A fatal runtime error must never end the host process: none of exit() or
+# abort() may appear in runtime/ or the generated code (the hosted build returns through rt_fatal instead).
+on:
+  pull_request:
+    paths: ["datasources/hargup/**", ".github/workflows/hargup.yml"]
+  push:
+    branches: [main]
+    paths: ["datasources/hargup/**", ".github/workflows/hargup.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hargup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: No exit() or abort() in the runtime or generated code
+        working-directory: datasources/hargup
+        run: |
+          if grep -nE '\b(exit|abort)\(' runtime/*.c gen/*.c; then
+            echo "a fatal error must go through rt_fatal (runtime/rt.h)"; exit 1
+          fi
+      - name: Install Lean 4.35.0 at the path build.sh expects
+        run: |
+          curl -fsSL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install "$(cat datasources/hargup/spec/lean-toolchain)"
+          sudo ln -sfn "$("$HOME/.elan/bin/lean" --print-prefix)" /opt/lean-4.35.0
+      - name: Build (Lean checks the spec and derives the C, then cc)
+        run: bash datasources/hargup/build.sh
+      - name: Check out the challenge at its pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: arjaythedev/twelve-dollar-server-challenge
+          ref: 39cd79b2a2ce9e01f99352c1fe8209cb2afc80c1
+          path: challenge
+      - name: Build the seed
+        run: bash challenge/seed/make-seed.sh
+      - name: Conformance (42/42)
+        working-directory: challenge
+        env:
+          JWT_SECRET: twelve-dollar-challenge
+          HOST: 127.0.0.1
+          PORT: "3000"
+        run: |
+          cp seed/feed.db /tmp/hargup.db
+          SQLITE_PATH=/tmp/hargup.db "$GITHUB_WORKSPACE/datasources/hargup/bin/server" > /tmp/hargup.log 2>&1 &
+          pid=$!
+          for _ in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:3000/health && break; sleep 1; done
+          bash test/test.sh http://127.0.0.1:3000 | tee /tmp/hargup-test.log
+          kill "$pid" || true
+          tail -1 /tmp/hargup-test.log | grep -qx 'passed=42 failed=0'

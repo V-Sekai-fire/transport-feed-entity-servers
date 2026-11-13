@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: If you use this code, cite it as below. It is imported from the pinned commit; only the fatal-error path was changed.
+title: lean-derive-hargup
+abstract: >-
+  A feed server for the twelve-dollar-server-challenge. The API is specified in Lean 4 (domain, a
+  global invariant over the stored data, read plans proved equal to the specified results, the
+  wire contract); a Lean program generates the C application layer, which is compiled with SQLite
+  and a small io_uring runtime into one binary. Imported at the pinned commit, with exit() and abort() replaced by one rt_fatal hook; the
+  challenge repository's MIT licence covers submissions.
+type: software
+authors:
+  - family-names: Gupta
+    given-names: Harsh
+    alias: hargup
+repository-code: https://github.com/arjaythedev/twelve-dollar-server-challenge/tree/39cd79b2a2ce9e01f99352c1fe8209cb2afc80c1/submissions/lean-derive-hargup
+url: https://github.com/arjaythedev/twelve-dollar-server-challenge/pull/153
+commit: 39cd79b2a2ce9e01f99352c1fe8209cb2afc80c1
+date-released: 2026-10-30
+license: MIT
+keywords:
+  - Lean 4
+  - code generation
+  - io_uring
+  - SQLite
+references:
+  - type: software
+    title: twelve-dollar-server-challenge
+    authors:
+      - name: arjaythedev and the challenge contributors
+    repository-code: https://github.com/arjaythedev/twelve-dollar-server-challenge
+    license: MIT

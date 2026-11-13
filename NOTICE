@@ -7,3 +7,10 @@ SQLite is public domain; the pinned 3.54.1 amalgamation is fetched by deploy/scr
 datasources/store/ is a subtree of V-Sekai-fire's store repository (SQLite with a FoundationDB VFS), licensed
 under either Apache-2.0 (datasources/store/LICENSE-APACHE) or MIT (datasources/store/LICENSE-MIT). libweftfdb builds from it
 but no executable links it yet.
+
+datasources/hargup/ is the lean-derive-hargup submission by Harsh Gupta (@hargup, PR #153) to
+https://github.com/arjaythedev/twelve-dollar-server-challenge (MIT, copyright arjaythedev and the challenge
+contributors; the licence is copied beside it), at commit 39cd79b2a2ce9e01f99352c1fe8209cb2afc80c1. Its files are
+copied from that commit; the only changes are CITATION.cff, LICENSE, and the fatal-error path (commit "Route every fatal
+runtime error through rt_fatal": exit() and abort() became rt_fatal in runtime/*.c, defined in runtime/rt.h). The challenge's README says a
+submission is licensed under the repository's MIT licence. SQLite is fetched by its build.sh with a pinned SHA-256.
