@@ -13,7 +13,7 @@ below were measured on SQLite only.
 
 `entity-server` is a sibling of `feed-server`: a 64 Hz UDP tick (skateboard slice, plain syscalls only; the io_uring send path was removed), with the 100-byte packet layout from `datasources/entity-packet`. See RFD66606-2442 and RFD66606-2443.
 
-`transports/csrc/zone_relay.c` is the relay of a four-slot zone as a C99 state machine, checked against a recorded trace of its reference model. It is not yet attached to the server. See `docs/zone-relay.md`.
+The relay of a four-slot zone, which was here as `transports/csrc/zone_relay.c` and `zone_net.c`, is now the repository `V-Sekai-fire/transport-zone-relay`.
 
 ## Layers
 - `Http`: request parser. Proved: a parsed request never claims more bytes than the buffer holds.
