@@ -16,6 +16,29 @@ typedef unsigned long long u64;
 typedef long long i64;
 #endif
 
+/* ---- fatal path ------------------------------------------------------------------------- */
+/* Standalone: print and exit(1), as before. Hosted (NIF or C node): the host sets rt_fatal_jmp on the
+ * thread that runs the server, and a fatal error returns there with rt_fatal_msg filled in, so no
+ * runtime call ends the host's process. */
+#include <setjmp.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+static _Thread_local jmp_buf *rt_fatal_jmp;
+static _Thread_local char rt_fatal_msg[256];
+static void rt_fatal(const char *fmt, ...) __attribute__((noreturn, format(printf, 1, 2)));
+static void rt_fatal(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  (void)vsnprintf(rt_fatal_msg, sizeof rt_fatal_msg, fmt, ap);
+  va_end(ap);
+  if (rt_fatal_jmp != NULL) {
+    longjmp(*rt_fatal_jmp, 1);
+  } else {
+    (void)fprintf(stderr, "fatal: %s\n", rt_fatal_msg);
+    exit(1);
+  }
+}
 #define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 

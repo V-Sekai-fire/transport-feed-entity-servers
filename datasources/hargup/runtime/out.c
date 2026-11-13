@@ -19,14 +19,14 @@ static u32 block_free_count;
 static inline obuf *obuf_get(void) {
   obuf *b = obuf_free_list;
   if (b) obuf_free_list = b->next;
-  else if (!(b = malloc(sizeof *b))) abort();
+  else if (!(b = malloc(sizeof *b))) rt_fatal("out of memory (response buffer)");
   b->next = 0;
   return b;
 }
 static inline u8 *block_get(void) {
   u8 *m = block_free_list;
   if (m) { block_free_list = *(u8 **)m; block_free_count--; return m; }
-  if (!(m = malloc(BLOCK))) abort();
+  if (!(m = malloc(BLOCK))) rt_fatal("out of memory (response buffer)");
   return m;
 }
 static inline void block_put(u8 *m) {
@@ -60,7 +60,7 @@ static void out_grow(out_t *o, u32 n) {
   u32 want = (u32)(o->end - o->start) * 2;
   if (want < used + n) want = used + n;
   u8 *m = malloc(HDR_ROOM + want);
-  if (!m) abort();
+  if (!m) rt_fatal("out of memory (response buffer)");
   memcpy(m + HDR_ROOM, o->start, used);
   if (o->b->cap == BLOCK) block_put(o->b->mem); else free(o->b->mem);
   o->b->mem = m;

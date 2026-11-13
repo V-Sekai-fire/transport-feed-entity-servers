@@ -14,8 +14,7 @@ static int db_wrote;         /* a write statement ran in this batch */
 static sqlite3_stmt *st_begin, *st_commit, *st_rollback;
 
 static void db_die(const char *what) {
-  fprintf(stderr, "fatal: %s: %s\n", what, db ? sqlite3_errmsg(db) : "no database");
-  exit(1);
+  rt_fatal("%s: %s", what, db ? sqlite3_errmsg(db) : "no database");
 }
 static sqlite3_stmt *db_prepare(const char *sql) {
   sqlite3_stmt *s;
@@ -24,7 +23,7 @@ static sqlite3_stmt *db_prepare(const char *sql) {
 }
 static void db_exec(const char *sql) {
   char *err = 0;
-  if (sqlite3_exec(db, sql, 0, 0, &err) != SQLITE_OK) { fprintf(stderr, "fatal: %s: %s\n", sql, err); exit(1); }
+  if (sqlite3_exec(db, sql, 0, 0, &err) != SQLITE_OK) rt_fatal("%s: %s", sql, err);
 }
 static int step_reset(sqlite3_stmt *s) {
   int rc = sqlite3_step(s);
@@ -36,7 +35,7 @@ static Pgno db_rootpage(const char *name) {
   sqlite3_bind_text(s, 1, name, -1, SQLITE_STATIC);
   Pgno r = sqlite3_step(s) == SQLITE_ROW ? (Pgno)sqlite3_column_int64(s, 0) : 0;
   sqlite3_finalize(s);
-  if (!r) { fprintf(stderr, "fatal: no b-tree for %s\n", name); exit(1); }
+  if (!r) rt_fatal("no b-tree for %s", name);
   return r;
 }
 /* KeyInfo for an index whose leading key columns are compared with BINARY collation. */
@@ -91,7 +90,7 @@ static void ckpt_start(const char *path) {
   if (sqlite3_open_v2(path, &ckpt_db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX, 0) != SQLITE_OK) db_die("open (checkpointer)");
   sqlite3_exec(ckpt_db, "PRAGMA synchronous = NORMAL", 0, 0, 0);
   pthread_t t;
-  if (pthread_create(&t, 0, ckpt_main, 0)) { perror("pthread_create"); exit(1); }
+  if (pthread_create(&t, 0, ckpt_main, 0)) rt_fatal("pthread_create failed");
   pthread_detach(t);
 }
 
@@ -165,7 +164,7 @@ typedef struct { BtCursor *c; } cursor;
 static cursor cursor_new(Pgno root, KeyInfo *ki) {
   cursor r;
   r.c = malloc((size_t)sqlite3BtreeCursorSize());
-  if (!r.c) abort();
+  if (!r.c) rt_fatal("out of memory (cursor)");
   sqlite3BtreeCursorZero(r.c);
   if (sqlite3BtreeCursor(db_bt, root, 0, ki, r.c) != SQLITE_OK) db_die("cursor");
   return r;
@@ -189,7 +188,7 @@ static int cur_record(cursor *c, rec_t *r) {
   if (total > rec_spill_cap) {
     free(rec_spill);
     rec_spill_cap = total + 4096;
-    if (!(rec_spill = malloc(rec_spill_cap))) abort();
+    if (!(rec_spill = malloc(rec_spill_cap))) rt_fatal("out of memory (record spill)");
   }
   if (sqlite3BtreePayload(c->c, 0, total, rec_spill) != SQLITE_OK) return -1;
   r->p = rec_spill; r->n = total;

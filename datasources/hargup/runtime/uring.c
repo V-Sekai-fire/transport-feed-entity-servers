@@ -71,7 +71,7 @@ static void ring_flush(ring *r) {
   int rc;
   do rc = sys_enter(r->fd, r->to_submit, 0, IORING_ENTER_GETEVENTS);
   while (rc < 0 && errno == EINTR);
-  if (rc < 0) { perror("io_uring_enter"); exit(1); }
+  if (rc < 0) rt_fatal("io_uring_enter: %s", strerror(errno));
   r->to_submit -= (u32)rc;
 }
 static struct io_uring_sqe *sqe_get(ring *r) {
@@ -79,7 +79,7 @@ static struct io_uring_sqe *sqe_get(ring *r) {
   if (r->sq_tail - head >= r->sq_entries) {
     ring_flush(r);
     head = __atomic_load_n(r->sq_khead, __ATOMIC_ACQUIRE);
-    if (r->sq_tail - head >= r->sq_entries) { fprintf(stderr, "fatal: submission queue full\n"); exit(1); }
+    if (r->sq_tail - head >= r->sq_entries) rt_fatal("submission queue full");
   }
   struct io_uring_sqe *s = &r->sqes[r->sq_tail & r->sq_mask];
   memset(s, 0, sizeof *s);
@@ -220,7 +220,7 @@ static void conn_keep(conn *c, const u8 *p, u32 n) {
   if (n > c->in_cap) {
     u32 cap = n < 4096 ? 4096 : n * 2;
     u8 *m = malloc(cap);
-    if (!m) abort();
+    if (!m) rt_fatal("out of memory (transport)");
     if (c->in && c->in_len) memmove(m, p, n); else memcpy(m, p, n);
     free(c->in);
     c->in = m;
@@ -235,7 +235,7 @@ static void on_data(ring *r, u32 slot, const u8 *p, u32 n) {
     if (c->in_len + n > c->in_cap) {
       u32 cap = (c->in_len + n) * 2;
       u8 *m = realloc(c->in, cap);
-      if (!m) abort();
+      if (!m) rt_fatal("out of memory (transport)");
       c->in = m;
       c->in_cap = cap;
     }
@@ -343,14 +343,14 @@ static int listen_socket(const char *host, int port) {
   int fam;
   if (inet_pton(AF_INET, host, &a4->sin_addr) == 1) { fam = AF_INET; a4->sin_family = AF_INET; a4->sin_port = htons((u16)port); sl = sizeof *a4; }
   else if (inet_pton(AF_INET6, host, &a6->sin6_addr) == 1) { fam = AF_INET6; a6->sin6_family = AF_INET6; a6->sin6_port = htons((u16)port); sl = sizeof *a6; }
-  else { fprintf(stderr, "fatal: HOST %s is not an IP address\n", host); exit(1); }
+  else rt_fatal("HOST %s is not an IP address", host);
   int fd = socket(fam, SOCK_STREAM | SOCK_CLOEXEC, 0);
   int one = 1;
   setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
   setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof one);
   setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
-  if (bind(fd, (struct sockaddr *)&ss, sl) < 0) { perror("bind"); exit(1); }
-  if (listen(fd, 65535) < 0) { perror("listen"); exit(1); }
+  if (bind(fd, (struct sockaddr *)&ss, sl) < 0) rt_fatal("bind: %s", strerror(errno));
+  if (listen(fd, 65535) < 0) rt_fatal("listen: %s", strerror(errno));
   return fd;
 }
 
@@ -361,14 +361,14 @@ static void ring_init(ring *r, int idx, u32 slots, const char *host, int port) {
             IORING_SETUP_TASKRUN_FLAG;
   p.cq_entries = CQ_ENTRIES;
   int fd = sys_setup(SQ_ENTRIES, &p);
-  if (fd < 0) { perror("io_uring_setup"); exit(1); }
+  if (fd < 0) rt_fatal("io_uring_setup: %s", strerror(errno));
   r->fd = fd;
   r->idx = idx;
   size_t sq_sz = p.sq_off.array + p.sq_entries * sizeof(u32);
   size_t cq_sz = p.cq_off.cqes + p.cq_entries * sizeof(struct io_uring_cqe);
   if (cq_sz > sq_sz) sq_sz = cq_sz;
   u8 *m = mmap(0, sq_sz, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, IORING_OFF_SQ_RING);
-  if (m == MAP_FAILED) { perror("mmap sq"); exit(1); }
+  if (m == MAP_FAILED) rt_fatal("mmap sq: %s", strerror(errno));
   r->sq_khead = (u32 *)(m + p.sq_off.head);
   r->sq_ktail = (u32 *)(m + p.sq_off.tail);
   r->sq_kflags = (u32 *)(m + p.sq_off.flags);
@@ -382,33 +382,33 @@ static void ring_init(ring *r, int idx, u32 slots, const char *host, int port) {
   r->cq_mask = *(u32 *)(m + p.cq_off.ring_mask);
   r->cqes = (struct io_uring_cqe *)(m + p.cq_off.cqes);
   r->sqes = mmap(0, p.sq_entries * sizeof(struct io_uring_sqe), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, IORING_OFF_SQES);
-  if (r->sqes == MAP_FAILED) { perror("mmap sqes"); exit(1); }
+  if (r->sqes == MAP_FAILED) rt_fatal("mmap sqes: %s", strerror(errno));
   /* direct descriptor table */
   struct io_uring_rsrc_register rr;
   memset(&rr, 0, sizeof rr);
   rr.nr = slots;
   rr.flags = IORING_RSRC_REGISTER_SPARSE;
-  if (sys_register(fd, IORING_REGISTER_FILES2, &rr, sizeof rr) < 0) { perror("register files"); exit(1); }
+  if (sys_register(fd, IORING_REGISTER_FILES2, &rr, sizeof rr) < 0) rt_fatal("register files: %s", strerror(errno));
   r->nslots = slots;
   r->conns = calloc(slots, sizeof(conn));
-  if (!r->conns) abort();
+  if (!r->conns) rt_fatal("out of memory (transport)");
   /* provided buffers */
   r->br = mmap(0, NBUF * sizeof(struct io_uring_buf), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (r->br == MAP_FAILED) { perror("mmap buf ring"); exit(1); }
+  if (r->br == MAP_FAILED) rt_fatal("mmap buf ring: %s", strerror(errno));
   struct io_uring_buf_reg reg;
   memset(&reg, 0, sizeof reg);
   reg.ring_addr = (u64)(uintptr_t)r->br;
   reg.ring_entries = NBUF;
   reg.bgid = 0;
-  if (sys_register(fd, IORING_REGISTER_PBUF_RING, &reg, 1) < 0) { perror("register buffer ring"); exit(1); }
+  if (sys_register(fd, IORING_REGISTER_PBUF_RING, &reg, 1) < 0) rt_fatal("register buffer ring: %s", strerror(errno));
   r->bufs = mmap(0, (size_t)NBUF * BUFSZ, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (r->bufs == MAP_FAILED) { perror("mmap bufs"); exit(1); }
+  if (r->bufs == MAP_FAILED) rt_fatal("mmap bufs: %s", strerror(errno));
   r->br_tail = 0;
   for (u16 i = 0; i < NBUF; i++) buf_recycle(r, i);
   buf_publish(r);
   /* wakeups */
   r->efd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-  if (sys_register(fd, IORING_REGISTER_EVENTFD, &r->efd, 1) < 0) { perror("register eventfd"); exit(1); }
+  if (sys_register(fd, IORING_REGISTER_EVENTFD, &r->efd, 1) < 0) rt_fatal("register eventfd: %s", strerror(errno));
   struct epoll_event ev = {.events = EPOLLIN | EPOLLET, .data.u32 = (u32)idx};
   epoll_ctl(epfd, EPOLL_CTL_ADD, r->efd, &ev);
   r->lfd = listen_socket(host, port);
@@ -511,7 +511,7 @@ static void transport_run(void) {
       int rc;
       do rc = sys_enter(r->fd, r->to_submit, 0, IORING_ENTER_GETEVENTS);
       while (rc < 0 && errno == EINTR);
-      if (rc < 0) { perror("io_uring_enter"); exit(1); }
+      if (rc < 0) rt_fatal("io_uring_enter: %s", strerror(errno));
       STAT(st_enters++);
       r->to_submit -= (u32)rc;
       r->hot = 0;
