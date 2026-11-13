@@ -39,6 +39,8 @@ jobs:
           repository: arjaythedev/twelve-dollar-server-challenge
           ref: 39cd79b2a2ce9e01f99352c1fe8209cb2afc80c1
           path: challenge
+      - name: Build the seed
+        run: bash challenge/seed/make-seed.sh
       - name: Conformance (42/42)
         working-directory: challenge
         env:
