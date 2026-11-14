@@ -21,7 +21,8 @@ int main(int argc, char **argv) {
   if (strcmp(be, "nosend") == 0) io = &nosend_io;
   else if (strcmp(be, "plain") != 0) { fprintf(stderr, "backend %s is not built in\n", be); return 2; }
   et_cpus_allowed(cpus, sizeof cpus);
-  int rc = et_run_with("127.0.0.1", port, ticks, slow, 0, &r, io);
+  const char *host = getenv("ENTITY_SERVE_HOST") ? getenv("ENTITY_SERVE_HOST") : "127.0.0.1";
+  int rc = et_run_with(host, port, ticks, slow, 0, &r, io);
   printf("%s cpus=%s rc=%d ticks=%u packets_in=%u datagrams_out=%u overruns=%u p50=%lldns p95=%lldns p99=%lldns max=%lldns rcvbuf_drops=%lldpackets\n", argv[1], cpus, rc,
          r.ticks, r.packets_in, r.datagrams_out, r.overruns, (long long)r.p50_ns, (long long)r.p95_ns, (long long)r.p99_ns,
          (long long)r.max_ns, (long long)r.rcvbuf_drops);
