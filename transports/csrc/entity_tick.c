@@ -101,9 +101,10 @@ static ssize_t er_recv(void *buf, size_t cap, struct sockaddr_storage *from, soc
 static int64_t er_overflow(void) { return er.cq_overflow ? (int64_t)*er.cq_overflow : 0; }
 static void er_close(void) { if (er.fd >= 0) { close(er.fd); er.fd = -1; } }
 #else
-static int er_open(int sock) { (void)sock; return -1; }
-static ssize_t er_recv(void *buf, size_t cap, struct sockaddr_storage *from, socklen_t *fl) { (void)buf; (void)cap; (void)from; (void)fl; return -1; }
-static int64_t er_overflow(void) { return 0; }
+/* No io_uring here: the one receive path is recvfrom, fixed when this file is compiled. */
+static int er_sock = -1;
+static int er_open(int sock) { er_sock = sock; return 0; }
+static ssize_t er_recv(void *buf, size_t cap, struct sockaddr_storage *from, socklen_t *fl) { *fl = sizeof *from; return recvfrom(er_sock, buf, cap, 0, (struct sockaddr *)from, fl); }
 static void er_close(void) {}
 #endif
 typedef struct { struct sockaddr_storage a; socklen_t al; int used; uint32_t slot; } sess_t;
@@ -148,13 +149,15 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
     if (bind(fd, (struct sockaddr *)&a, al) < 0 || getsockname(fd, (struct sockaddr *)&a, &sl) < 0) { int e = errno; close(fd); return -e; } }
   if (bound) *bound = ntohs(a.ss_family == AF_INET6 ? a6->sin6_port : a4->sin_port);
   fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-  int use_ring = 0;
-  { const char *rx = getenv("ENTITY_RECV"); if (rx && strcmp(rx, "ring") == 0) use_ring = er_open(fd) == 0; }
-  out->ring = use_ring;
+  { int e = er_open(fd); if (e < 0) { close(fd); return e; } }
+#ifdef __linux__
+  out->ring = 1;
+#endif
   if (io && io->open && io->open(fd) < 0) { close(fd); return -EIO; }
-  otel_t *ot = 0; uint64_t run_sid = 0; int64_t run_t0 = now_ns();
-  { const char *op = getenv("ENTITY_OTEL");
-    if (op && *op && otel_open(&ot_store, "entity-server", getenv("OTEL_RESOURCE_ATTRIBUTES"), op, 0) == 0) { const char *of = getenv("ENTITY_OTEL_FORMAT"); ot = &ot_store; ot->pb = of && strcmp(of, "pb") == 0; run_sid = otel_id(ot); } }
+  /* Spans are recorded and flushed every run; the environment only says where they go, and /dev/null is a place. */
+  otel_t *ot = &ot_store; int64_t run_t0 = now_ns();
+  { const char *op = getenv("ENTITY_OTEL"); if (otel_open(ot, op && *op ? op : "/dev/null", 0) < 0) { int e = errno; er_close(); close(fd); return -e; } }
+  uint64_t run_sid = otel_id(ot);
   int64_t next = now_ns() + ET_TICK_NS;
   for (uint32_t t = 0; t < ticks; t++) {
     struct timespec ts; ts.tv_sec = (time_t)(next / 1000000000LL); ts.tv_nsec = (long)(next % 1000000000LL);
@@ -168,7 +171,7 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
     uint8_t buf[PKT + 8]; struct sockaddr_storage from; socklen_t fl;
     for (;;) {
       fl = sizeof from;
-      ssize_t n = use_ring ? er_recv(buf, sizeof buf, &from, &fl) : recvfrom(fd, buf, sizeof buf, 0, (struct sockaddr *)&from, &fl);
+      ssize_t n = er_recv(buf, sizeof buf, &from, &fl);
       if (n < 0) break;
       if (first < 0) first = now_ns();
       if (n != PKT) continue;
@@ -190,7 +193,7 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
       for (int i = 0; i < n; i++)
         if (sendto(fd, outs[i].buf, outs[i].len, 0, (const struct sockaddr *)outs[i].to, outs[i].tolen) >= 0) out->datagrams_out++;
     int64_t t1 = now_ns();
-    if (ot) {
+    {
       static const char *const k[4] = { "clients", "packets_in", "datagrams_out", "tick" };
       int64_t v[4]; v[0] = n; v[1] = (int64_t)out->packets_in - pk0; v[2] = (int64_t)out->datagrams_out - dg0; v[3] = t;
       otel_span(ot, "entity.tick", run_sid, t0, t1, 4, k, v);
@@ -200,7 +203,7 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
     if (t1 > next + ET_TICK_NS) { out->overruns++; next = t1 + ET_TICK_NS; } else next += ET_TICK_NS;
   }
   out->ticks = ticks;
-  if (ot) {
+  {
     static const char *const k[3] = { "ticks", "packets_in", "datagrams_out" };
     int64_t v[3]; v[0] = ticks; v[1] = (int64_t)out->packets_in; v[2] = (int64_t)out->datagrams_out;
     otel_span_as(ot, run_sid, "entity.run", 0, run_t0, now_ns(), 3, k, v);
@@ -214,7 +217,10 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
   { uint32_t mi[9]; socklen_t ml = sizeof mi; /* SK_MEMINFO_DROPS is index 8 */
     if (getsockopt(fd, SOL_SOCKET, SO_MEMINFO, mi, &ml) == 0 && ml >= sizeof mi) out->rcvbuf_drops = (int64_t)mi[8]; }
 #endif
-  if (use_ring) { out->rcvbuf_drops = er_overflow(); er_close(); }
+#ifdef __linux__
+  out->rcvbuf_drops = er_overflow();
+#endif
+  er_close();
   if (io && io->close) io->close();
   close(fd);
   return 0;
