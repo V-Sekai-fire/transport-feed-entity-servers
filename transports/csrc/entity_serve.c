@@ -23,9 +23,9 @@ int main(int argc, char **argv) {
   et_cpus_allowed(cpus, sizeof cpus);
   const char *host = getenv("ENTITY_SERVE_HOST") ? getenv("ENTITY_SERVE_HOST") : "127.0.0.1";
   int rc = et_run_with(host, port, ticks, slow, 0, &r, io);
-  printf("%s cpus=%s rc=%d ticks=%u packets_in=%u datagrams_out=%u overruns=%u p50=%lldns p95=%lldns p99=%lldns max=%lldns rcvbuf_drops=%lldpackets\n", argv[1], cpus, rc,
+  printf("%s cpus=%s rc=%d ticks=%u packets_in=%u datagrams_out=%u overruns=%u p50=%lldns p95=%lldns p99=%lldns max=%lldns rcvbuf_drops=%lldpackets recv=%s\n", argv[1], cpus, rc,
          r.ticks, r.packets_in, r.datagrams_out, r.overruns, (long long)r.p50_ns, (long long)r.p95_ns, (long long)r.p99_ns,
-         (long long)r.max_ns, (long long)r.rcvbuf_drops);
+         (long long)r.max_ns, (long long)r.rcvbuf_drops, r.ring ? "ring" : "plain");
   if (argc == 6) printf("backend=%s\n", be);
   if (rc != 0 || r.packets_in < 80) { puts("FAIL: no traffic"); return 1; }
   if (r.p99_ns > 4000000LL) { puts("FAIL: p99 over the 4 ms budget"); return 1; }

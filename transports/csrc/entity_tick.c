@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE 1
 #include "entity_tick.h"
 #include "../../datasources/entity-packet/xr_grid_entity_packet.h"
 #include <arpa/inet.h>
@@ -11,6 +12,99 @@
 #include <unistd.h>
 #include <fcntl.h>
 #define PKT XR_PACKET_SIZE
+#if defined(__linux__)
+#include <linux/io_uring.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+/* Receive through io_uring: one multishot recvmsg into a provided-buffer ring, so packets move out of
+ * the socket as they arrive and the 64 Hz tick only reaps completions. Raw syscalls, no liburing, no heap. */
+#define ER_BUFS 8192
+#define ER_BUFSZ 256
+static struct {
+  int fd, sock;
+  unsigned *sq_tail, *sq_mask, *sq_array, *cq_head, *cq_tail, *cq_mask, *cq_overflow;
+  struct io_uring_sqe *sqes;
+  struct io_uring_cqe *cqes;
+  struct io_uring_buf_ring *br;
+  unsigned char *pool;
+  unsigned br_tail;
+  struct msghdr msg;
+} er = { -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0} };
+static void er_add(unsigned bid) {
+  struct io_uring_buf *b = &er.br->bufs[er.br_tail & (ER_BUFS - 1)];
+  b->addr = (unsigned long)(er.pool + (size_t)bid * ER_BUFSZ); b->len = ER_BUFSZ; b->bid = (unsigned short)bid;
+  er.br_tail++;
+  __atomic_store_n(&er.br->tail, (unsigned short)er.br_tail, __ATOMIC_RELEASE);
+}
+static void er_arm(void) {
+  unsigned t = *er.sq_tail, idx = t & *er.sq_mask;
+  struct io_uring_sqe *s = &er.sqes[idx];
+  memset(s, 0, sizeof *s);
+  s->opcode = IORING_OP_RECVMSG; s->fd = er.sock; s->addr = (unsigned long)&er.msg; s->len = 1;
+  s->flags = IOSQE_BUFFER_SELECT; s->buf_group = 0; s->ioprio = IORING_RECV_MULTISHOT;
+  er.sq_array[idx] = idx;
+  __atomic_store_n(er.sq_tail, t + 1, __ATOMIC_RELEASE);
+  syscall(__NR_io_uring_enter, er.fd, 1, 0, 0, 0, 0);
+}
+static int er_open(int sock) {
+  struct io_uring_params p; memset(&p, 0, sizeof p);
+  p.flags = IORING_SETUP_CQSIZE; p.cq_entries = 16384;
+  er.fd = (int)syscall(__NR_io_uring_setup, 8, &p);
+  if (er.fd < 0) return -errno;
+  size_t sqsz = p.sq_off.array + p.sq_entries * sizeof(unsigned), cqsz = p.cq_off.cqes + p.cq_entries * sizeof(struct io_uring_cqe);
+  void *sq, *cq;
+  if (p.features & IORING_FEAT_SINGLE_MMAP) { if (cqsz > sqsz) sqsz = cqsz; }
+  sq = mmap(0, sqsz, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, er.fd, IORING_OFF_SQ_RING);
+  if (sq == MAP_FAILED) return -errno;
+  cq = (p.features & IORING_FEAT_SINGLE_MMAP) ? sq : mmap(0, cqsz, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, er.fd, IORING_OFF_CQ_RING);
+  if (cq == MAP_FAILED) return -errno;
+  er.sqes = mmap(0, p.sq_entries * sizeof(struct io_uring_sqe), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, er.fd, IORING_OFF_SQES);
+  if (er.sqes == MAP_FAILED) return -errno;
+  er.sq_tail = (unsigned *)((char *)sq + p.sq_off.tail); er.sq_mask = (unsigned *)((char *)sq + p.sq_off.ring_mask);
+  er.sq_array = (unsigned *)((char *)sq + p.sq_off.array);
+  er.cq_head = (unsigned *)((char *)cq + p.cq_off.head); er.cq_tail = (unsigned *)((char *)cq + p.cq_off.tail);
+  er.cq_mask = (unsigned *)((char *)cq + p.cq_off.ring_mask); er.cq_overflow = (unsigned *)((char *)cq + p.cq_off.overflow);
+  er.cqes = (struct io_uring_cqe *)((char *)cq + p.cq_off.cqes);
+  er.br = mmap(0, ER_BUFS * sizeof(struct io_uring_buf), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  er.pool = mmap(0, (size_t)ER_BUFS * ER_BUFSZ, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  if (er.br == MAP_FAILED || er.pool == MAP_FAILED) return -ENOMEM;
+  struct io_uring_buf_reg reg; memset(&reg, 0, sizeof reg);
+  reg.ring_addr = (unsigned long)er.br; reg.ring_entries = ER_BUFS; reg.bgid = 0;
+  if (syscall(__NR_io_uring_register, er.fd, IORING_REGISTER_PBUF_RING, &reg, 1) < 0) return -errno;
+  for (unsigned i = 0; i < ER_BUFS; i++) er_add(i);
+  memset(&er.msg, 0, sizeof er.msg); er.msg.msg_namelen = sizeof(struct sockaddr_in6);
+  er.sock = sock;
+  er_arm();
+  return 0;
+}
+static ssize_t er_recv(void *buf, size_t cap, struct sockaddr_storage *from, socklen_t *fl) {
+  for (;;) {
+    unsigned head = *er.cq_head;
+    if (head == __atomic_load_n(er.cq_tail, __ATOMIC_ACQUIRE)) return -1;
+    struct io_uring_cqe c = er.cqes[head & *er.cq_mask];
+    __atomic_store_n(er.cq_head, head + 1, __ATOMIC_RELEASE);
+    if (!(c.flags & IORING_CQE_F_MORE)) er_arm();
+    if (c.res < 0 || !(c.flags & IORING_CQE_F_BUFFER)) continue;
+    unsigned bid = c.flags >> IORING_CQE_BUFFER_SHIFT;
+    unsigned char *b = er.pool + (size_t)bid * ER_BUFSZ;
+    struct io_uring_recvmsg_out o; memcpy(&o, b, sizeof o);
+    memset(from, 0, sizeof *from);
+    size_t nl = o.namelen < sizeof *from ? o.namelen : sizeof *from;
+    memcpy(from, b + sizeof o, nl); *fl = (socklen_t)nl;
+    size_t n = o.payloadlen, c2 = n < cap ? n : cap;
+    memcpy(buf, b + sizeof o + er.msg.msg_namelen, c2);
+    er_add(bid);
+    return (ssize_t)n;
+  }
+}
+static int64_t er_overflow(void) { return er.cq_overflow ? (int64_t)*er.cq_overflow : 0; }
+static void er_close(void) { if (er.fd >= 0) { close(er.fd); er.fd = -1; } }
+#else
+static int er_open(int sock) { (void)sock; return -1; }
+static ssize_t er_recv(void *buf, size_t cap, struct sockaddr_storage *from, socklen_t *fl) { (void)buf; (void)cap; (void)from; (void)fl; return -1; }
+static int64_t er_overflow(void) { return 0; }
+static void er_close(void) {}
+#endif
 typedef struct { struct sockaddr_storage a; socklen_t al; int used; uint32_t slot; } sess_t;
 static sess_t sess[ET_MAX_USERS];
 static uint8_t ents[ET_MAX_USERS][PKT];
@@ -52,6 +146,9 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
     if (bind(fd, (struct sockaddr *)&a, al) < 0 || getsockname(fd, (struct sockaddr *)&a, &sl) < 0) { int e = errno; close(fd); return -e; } }
   if (bound) *bound = ntohs(a.ss_family == AF_INET6 ? a6->sin6_port : a4->sin_port);
   fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+  int use_ring = 0;
+  { const char *rx = getenv("ENTITY_RECV"); if (rx && strcmp(rx, "ring") == 0) use_ring = er_open(fd) == 0; }
+  out->ring = use_ring;
   if (io && io->open && io->open(fd) < 0) { close(fd); return -EIO; }
   int64_t next = now_ns() + ET_TICK_NS;
   for (uint32_t t = 0; t < ticks; t++) {
@@ -65,7 +162,7 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
     uint8_t buf[PKT + 8]; struct sockaddr_storage from; socklen_t fl;
     for (;;) {
       fl = sizeof from;
-      ssize_t n = recvfrom(fd, buf, sizeof buf, 0, (struct sockaddr *)&from, &fl);
+      ssize_t n = use_ring ? er_recv(buf, sizeof buf, &from, &fl) : recvfrom(fd, buf, sizeof buf, 0, (struct sockaddr *)&from, &fl);
       if (n < 0) break;
       if (first < 0) first = now_ns();
       if (n != PKT) continue;
@@ -99,6 +196,7 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
   { uint32_t mi[9]; socklen_t ml = sizeof mi; /* SK_MEMINFO_DROPS is index 8 */
     if (getsockopt(fd, SOL_SOCKET, SO_MEMINFO, mi, &ml) == 0 && ml >= sizeof mi) out->rcvbuf_drops = (int64_t)mi[8]; }
 #endif
+  if (use_ring) { out->rcvbuf_drops = er_overflow(); er_close(); }
   if (io && io->close) io->close();
   close(fd);
   return 0;

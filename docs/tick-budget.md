@@ -312,3 +312,30 @@ Pooled over all four cells (64 runs each): the server on vCPU 0 had a p99 median
 
 What it shows: at 640 clients the server on the loader's core pays about 0.6 ms of extra p99, which is 9 % of a 6.94 ms period at 144 Hz (unmeasured there). Not shown: whether the penalty comes from sharing the core's execution units or its caches with the loader, or from something specific to vCPU 2. Moving the loader to vCPU 1, the sibling of vCPU 0, would separate those: if the penalty moves to vCPU 0, it is the loader's core. One runner, 64 Hz, loopback, no shared entities.
 
+
+## Receive through io_uring (2026-11-14)
+
+The send paths were measured in the sections above and made no difference. The receive side was
+not. On a Fly machine (performance-2x, Linux 6.12, `rmem_max` 212,992) the plain `recvfrom` loop
+lost packets as clients rose, and the p99 of the tick looked fine while it did so, because a server
+that receives half the packets does half the work.
+
+`ENTITY_RECV=ring` receives through one multishot `recvmsg` into a provided-buffer ring (raw
+syscalls, no liburing, no heap; `entity_tick.c`). Packets leave the socket as they arrive and the
+tick only reaps completions. The plain path is the default and the fallback, and non-Linux builds
+compile the ring out. The server and loader shared the machine over `::1`, 380 sends a client:
+
+| Clients | Receive | Packets received | p50 | p99 | Drops |
+| --- | --- | --- | --- | --- | --- |
+| 256 | plain | 100% | 2.25 ms | 4.19 ms | 0 |
+| 256 | ring | 100% | 1.82 ms | 2.91 ms | 0 |
+| 512 | plain | 50.2% | 2.21 ms | 3.72 ms | 96,900 |
+| 512 | ring | 100% | 4.08 ms | 5.85 ms | 0 |
+| 1,024 | plain | 43.0% | 5.30 ms | 7.75 ms | 221,689 |
+| 1,024 | ring | 100% | 10.67 ms | 28.04 ms | 0 |
+
+So the score to quote is clients at p99 under 4 ms with every packet received. Plain receive gets
+under 256; the ring holds 256 at 2.9 ms, and 512 with all packets takes 5.9 ms. The knee between 256
+and 512 was not found. The p99 at 512 and 1,024 is higher with the ring because the server now does
+all of the work it was sent. Same machine, loopback, two vCPUs shared with the loader: this is a
+comparison of the two receive paths, not a capacity.
