@@ -99,7 +99,28 @@ static ssize_t er_recv(void *buf, size_t cap, struct sockaddr_storage *from, soc
   }
 }
 static int64_t er_overflow(void) { return er.cq_overflow ? (int64_t)*er.cq_overflow : 0; }
-static void er_close(void) { if (er.fd >= 0) { close(er.fd); er.fd = -1; } }
+/* The multishot receive holds the socket until it ends, so closing the ring is not enough: cancel it and
+ * wait for its last completion, or the next bind of the same port finds the old socket still there. */
+static void er_close(void) {
+  if (er.fd < 0) return;
+  unsigned t = *er.sq_tail, idx = t & *er.sq_mask;
+  struct io_uring_sqe *s = &er.sqes[idx];
+  memset(s, 0, sizeof *s);
+  s->opcode = IORING_OP_ASYNC_CANCEL; s->cancel_flags = IORING_ASYNC_CANCEL_ANY | IORING_ASYNC_CANCEL_ALL; s->fd = -1;
+  er.sq_array[idx] = idx;
+  __atomic_store_n(er.sq_tail, t + 1, __ATOMIC_RELEASE);
+  for (int i = 0, ended = 0; !ended && i < 1000; i++) {
+    syscall(__NR_io_uring_enter, er.fd, i == 0 ? 1 : 0, 0, 0, 0, 0);
+    unsigned head = *er.cq_head, got = 0;
+    while (head != __atomic_load_n(er.cq_tail, __ATOMIC_ACQUIRE)) {
+      struct io_uring_cqe c = er.cqes[head++ & *er.cq_mask]; got++;
+      if ((c.res == -ECANCELED && !(c.flags & IORING_CQE_F_MORE)) || c.res == -ENOENT) ended = 1;
+    }
+    __atomic_store_n(er.cq_head, head, __ATOMIC_RELEASE);
+    if (!got && !ended) { struct timespec w = { 0, 100000 }; nanosleep(&w, 0); }
+  }
+  close(er.fd); er.fd = -1;
+}
 #else
 /* No io_uring here: the one receive path is recvfrom, fixed when this file is compiled. */
 static int er_sock = -1;
