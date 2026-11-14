@@ -18,16 +18,20 @@ standard `OTEL_RESOURCE_ATTRIBUTES`; the file holds one body a line for a sideca
 ## What the collector wants
 
 AppSignal's collector takes OTLP over HTTP as protobuf, not JSON, and reads its push key from the
-resource attribute `appsignal.config.push_api_key`, not from a header. A sidecar that turns these lines
-into protobuf, or an OpenTelemetry Collector that takes JSON and forwards, sits between the file and
-AppSignal. That sidecar is not here.
+resource attribute `appsignal.config.push_api_key`, not from a header. With `ENTITY_OTEL_FORMAT=pb` the
+server writes protobuf records instead of JSON lines: a 4-byte little-endian length, then one
+`ScopeSpans` message. The resource is left out on purpose, so no key is written to disk. The poster
+wraps each record in a `ResourceSpans` with a resource it builds from its own environment and posts it
+as `application/x-protobuf` to the collector's `/v1/traces`. The collector listens on port 8099 by
+default.
 
 ## Check
 
 `transports/test/otel_span_witness.cpp` holds the properties, built on witness-cpp: a flush is one
 balanced JSON line whatever the strings hold, every span has a 16-hex id and a shared 32-hex trace and
 names its parent, times are the monotonic times plus one offset, and a full ring drops and counts.
-Two planted-false properties must be caught. A second build with `-DOTEL_PLANT_NOCLEAN`, which skips
-the string cleaning, must fail the first property; CTest runs it with `WILL_FAIL`.
+Two planted-false properties must be caught. A property decodes the protobuf records with an independent reader and compares every field.
+Two more builds plant a defect each, `-DOTEL_PLANT_NOCLEAN` (skips the string cleaning) and
+`-DOTEL_PLANT_PBTIMES` (writes the end time as the start); CTest runs them with `WILL_FAIL`.
 
     cmake -S transports/test -B build && cmake --build build && ctest --test-dir build

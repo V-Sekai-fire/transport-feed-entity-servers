@@ -154,7 +154,7 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
   if (io && io->open && io->open(fd) < 0) { close(fd); return -EIO; }
   otel_t *ot = 0; uint64_t run_sid = 0; int64_t run_t0 = now_ns();
   { const char *op = getenv("ENTITY_OTEL");
-    if (op && *op && otel_open(&ot_store, "entity-server", getenv("OTEL_RESOURCE_ATTRIBUTES"), op, 0) == 0) { ot = &ot_store; run_sid = otel_id(ot); } }
+    if (op && *op && otel_open(&ot_store, "entity-server", getenv("OTEL_RESOURCE_ATTRIBUTES"), op, 0) == 0) { const char *of = getenv("ENTITY_OTEL_FORMAT"); ot = &ot_store; ot->pb = of && strcmp(of, "pb") == 0; run_sid = otel_id(ot); } }
   int64_t next = now_ns() + ET_TICK_NS;
   for (uint32_t t = 0; t < ticks; t++) {
     struct timespec ts; ts.tv_sec = (time_t)(next / 1000000000LL); ts.tv_nsec = (long)(next % 1000000000LL);
