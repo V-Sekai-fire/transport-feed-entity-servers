@@ -10,7 +10,7 @@
 typedef struct {
   uint32_t ticks, overruns, packets_in, datagrams_out;
   int64_t p50_ns, p95_ns, p99_ns, max_ns;
-  int ring; /* 1 when receive went through io_uring (ENTITY_RECV=ring); drops then count CQ overflow */
+  int ring; /* 1 where receive goes through io_uring, fixed at build time; drops then count CQ overflow */
   int64_t rcvbuf_drops; /* datagrams the kernel dropped on the server socket; -1 where the kernel does not say */
 } et_report_t;
 /* Binds host:port (port 0 picks one, written to *bound), runs `ticks` ticks, fills `out`.

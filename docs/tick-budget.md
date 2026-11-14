@@ -320,10 +320,12 @@ not. On a Fly machine (performance-2x, Linux 6.12, `rmem_max` 212,992) the plain
 lost packets as clients rose, and the p99 of the tick looked fine while it did so, because a server
 that receives half the packets does half the work.
 
-`ENTITY_RECV=ring` receives through one multishot `recvmsg` into a provided-buffer ring (raw
+On Linux the server receives through one multishot `recvmsg` into a provided-buffer ring (raw
 syscalls, no liburing, no heap; `entity_tick.c`). Packets leave the socket as they arrive and the
-tick only reaps completions. The plain path is the default and the fallback, and non-Linux builds
-compile the ring out. The server and loader shared the machine over `::1`, 380 sends a client:
+tick only reaps completions. That is the only receive path on Linux, fixed at build time: there is no
+switch and no runtime fallback, and a kernel without io_uring stops the run with an error. Other platforms
+compile in `recvfrom` instead. The table below compares the two paths and was taken when both existed; the server and loader shared
+the machine over `::1`, 380 sends a client:
 
 | Clients | Receive | Packets received | p50 | p99 | Drops |
 | --- | --- | --- | --- | --- | --- |
