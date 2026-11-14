@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #define PKT XR_PACKET_SIZE
+#include "otel_span.h"
 #if defined(__linux__)
 #include <linux/io_uring.h>
 #include <sys/mman.h>
@@ -119,6 +120,7 @@ static int find(const struct sockaddr_storage *a, socklen_t al) {
   return -1;
 }
 static uint8_t dgs[ET_MAX_USERS][PKT * ET_VIEW];
+static otel_t ot_store;
 static et_out_t outs[ET_MAX_USERS];
 int et_run(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_ns, uint16_t *bound, et_report_t *out) {
   return et_run_with(host, port, ticks, slow_ns, bound, out, 0);
@@ -150,6 +152,9 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
   { const char *rx = getenv("ENTITY_RECV"); if (rx && strcmp(rx, "ring") == 0) use_ring = er_open(fd) == 0; }
   out->ring = use_ring;
   if (io && io->open && io->open(fd) < 0) { close(fd); return -EIO; }
+  otel_t *ot = 0; uint64_t run_sid = 0; int64_t run_t0 = now_ns();
+  { const char *op = getenv("ENTITY_OTEL");
+    if (op && *op && otel_open(&ot_store, "entity-server", getenv("OTEL_RESOURCE_ATTRIBUTES"), op, 0) == 0) { const char *of = getenv("ENTITY_OTEL_FORMAT"); ot = &ot_store; ot->pb = of && strcmp(of, "pb") == 0; run_sid = otel_id(ot); } }
   int64_t next = now_ns() + ET_TICK_NS;
   for (uint32_t t = 0; t < ticks; t++) {
     struct timespec ts; ts.tv_sec = (time_t)(next / 1000000000LL); ts.tv_nsec = (long)(next % 1000000000LL);
@@ -159,6 +164,7 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
     { int64_t d = next - now_ns(); if (d > 0) { struct timespec r; r.tv_sec = (time_t)(d / 1000000000LL); r.tv_nsec = (long)(d % 1000000000LL); nanosleep(&r, 0); } }
 #endif
     int64_t t0 = now_ns(), first = -1;
+    uint32_t pk0 = out->packets_in, dg0 = out->datagrams_out;
     uint8_t buf[PKT + 8]; struct sockaddr_storage from; socklen_t fl;
     for (;;) {
       fl = sizeof from;
@@ -184,10 +190,22 @@ int et_run_with(const char *host, uint16_t port, uint32_t ticks, uint32_t slow_n
       for (int i = 0; i < n; i++)
         if (sendto(fd, outs[i].buf, outs[i].len, 0, (const struct sockaddr *)outs[i].to, outs[i].tolen) >= 0) out->datagrams_out++;
     int64_t t1 = now_ns();
+    if (ot) {
+      static const char *const k[4] = { "clients", "packets_in", "datagrams_out", "tick" };
+      int64_t v[4]; v[0] = n; v[1] = (int64_t)out->packets_in - pk0; v[2] = (int64_t)out->datagrams_out - dg0; v[3] = t;
+      otel_span(ot, "entity.tick", run_sid, t0, t1, 4, k, v);
+      if (ot->n >= OTEL_CAP / 2 && next - t1 > 3000000) otel_flush(ot);
+    }
     lat[t] = t1 - (first >= 0 ? first : t0);
     if (t1 > next + ET_TICK_NS) { out->overruns++; next = t1 + ET_TICK_NS; } else next += ET_TICK_NS;
   }
   out->ticks = ticks;
+  if (ot) {
+    static const char *const k[3] = { "ticks", "packets_in", "datagrams_out" };
+    int64_t v[3]; v[0] = ticks; v[1] = (int64_t)out->packets_in; v[2] = (int64_t)out->datagrams_out;
+    otel_span_as(ot, run_sid, "entity.run", 0, run_t0, now_ns(), 3, k, v);
+    otel_close(ot);
+  }
   { static int64_t s[1 << 16]; memcpy(s, lat, (size_t)ticks * sizeof(int64_t));
     qsort(s, ticks, sizeof(int64_t), cmp);
     out->p50_ns = s[ticks / 2]; out->p95_ns = s[(ticks * 95u) / 100]; out->p99_ns = s[(ticks * 99u) / 100]; out->max_ns = s[ticks - 1]; }
